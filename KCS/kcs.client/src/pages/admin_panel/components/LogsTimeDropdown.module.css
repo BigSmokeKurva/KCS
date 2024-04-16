@@ -1,0 +1,12 @@
+.dropdown_content{
+    max-height: 350px;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(63, 66, 70, 1) rgba(24, 24, 27, 1);
+}
+
+@media (max-width: 768px) {
+    .dropdown_content{
+        max-height: 150px;
+    }
+}

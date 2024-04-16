@@ -1,0 +1,104 @@
+@media (hover: hover) {
+    .close_button:hover {
+        background-color: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.overlay {
+    background: rgba(6, 6, 6, 0.79);
+    z-index: 1;
+    height: 100%;
+    width: 100%;
+    position: fixed;
+}
+
+.options_container {
+    height: 100%;
+    width: 100%;
+    z-index: 2;
+    position: fixed;
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.10s;
+    place-content: center;
+}
+
+.options_container.open {
+    opacity: 1;
+}
+
+.options_container.close {
+    opacity: 0;
+}
+
+.options {
+    z-index: 2;
+    padding: 15px 20px;
+    box-sizing: border-box;
+    background: rgba(24, 24, 27, 1);
+    position: absolute;
+    display: flex;
+    border-radius: 6px;
+    flex-direction: column;
+    gap: 15px;
+    width: 280px;
+}
+
+.close_button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.title{
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 10px;
+}
+
+.title > span {
+    font-family: Inter-SemiBold;
+    font-size: 24px;
+    color: rgba(239, 239, 241, 1);
+    margin-left: 10px;
+}
+
+.body{
+    display: flex;
+    flex-direction: column;
+    padding-left: 5px;
+    box-sizing: border-box;
+}
+
+.body > span:nth-child(1) {
+    font-family: Inter-SemiBold;
+    font-size: 18px;
+    color: rgba(239, 239, 241, 1);
+    line-height: 27px;
+}
+
+.body > span:nth-child(3) {
+    font-family: Inter-Regular;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 19.5px;
+}
+
+.body > input{
+    border: 1px solid rgba(103, 103, 107, 1);
+    color: rgba(255, 255, 255, 0.70);
+    border-radius: 4px;
+    background: transparent;
+    width: 95px;
+    font-size: 14px;
+    padding: 6px 10px;
+    outline: none;
+    height: 31px;
+    box-sizing: border-box;
+}
+
+.buttons_container{
+    margin-left: auto;
+}

@@ -1,0 +1,16 @@
+.main_container{
+    height: 100%;
+    width: 100%;
+    background: rgba(0, 0, 0, 1);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.main_container > span{
+    color: rgba(239, 239, 241, 1);
+    font-size: 32px;
+    font-family: Inter-SemiBold;
+}

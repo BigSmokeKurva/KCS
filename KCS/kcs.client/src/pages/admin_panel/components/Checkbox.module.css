@@ -1,0 +1,19 @@
+input[type='checkbox'] {
+    display: none;
+}
+
+.checkbox > svg {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2px;
+    height: 21px;
+}
+
+input[type='checkbox']:not(:checked) + svg {
+    stroke: #9147FF;
+}
+
+input[type='checkbox']:checked + svg {
+    fill: #9147FF;
+}

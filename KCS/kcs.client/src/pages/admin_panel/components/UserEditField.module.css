@@ -1,0 +1,39 @@
+@media (hover: hover) {
+    .edit_button:hover {
+        background: rgba(128, 62, 226, 1);
+    }
+}
+
+.field_container {
+    height: 40px;
+    display: flex;
+}
+
+.input {
+    height: 100%;
+    border: 1px solid rgba(222, 222, 227, 0.40);
+    border-right: none;
+    padding: 10px;
+    box-sizing: border-box;
+    background: transparent;
+    outline: none;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 4px 0px 0px 4px;
+}
+
+.edit_button {
+    background: rgba(145, 71, 255, 1);
+    padding: 0;
+    border: none;
+    border-radius: 0px 4px 4px 0px;
+    height: 100%;
+    width: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.edit_button:active {
+    background: rgba(115, 56, 204, 1);
+}

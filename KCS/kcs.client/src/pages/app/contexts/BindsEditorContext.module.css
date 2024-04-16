@@ -1,0 +1,214 @@
+@media(hover: hover) {
+    .title_bind:not([disabled]):hover {
+        border: 1px solid rgba(145, 71, 255, 1);
+    }
+
+    .delete_template_button:not([disabled]):hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.binds_editor_container {
+    height: 100%;
+    width: 100%;
+    z-index: 2;
+    position: fixed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.10s;
+}
+
+.binds_editor_container.open {
+    opacity: 1;
+}
+
+.binds_editor_container.close {
+    opacity: 0;
+}
+
+.editor {
+    height: 530px;
+    width: fit-content;
+    border-radius: 6px;
+    background: rgba(24, 24, 27, 1);
+    display: flex;
+    gap: 20px;
+    flex-direction: column;
+    position: absolute;
+    padding: 20px;
+    z-index: 2;
+}
+
+.overlay {
+    background: rgba(6, 6, 6, 0.79);
+    z-index: 1;
+    height: 100%;
+    width: 100%;
+    position: fixed;
+    padding: 20px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0px 0px 11px 10px;
+    align-items: flex-start;
+}
+
+.header > span {
+    font-family: Inter-SemiBold;
+    font-size: 24px;
+    color: rgba(239, 239, 241, 1);
+}
+
+.close_button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.template_container {
+    display: flex;
+    flex-direction: row;
+    gap: 30px;
+}
+
+.template_container > div {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.title_bind {
+    border: 1px solid rgba(103, 103, 107, 1);
+    color: rgba(255, 255, 255, 0.70);
+    border-radius: 4px;
+    background: transparent;
+    width: 265px;
+    font-size: 14px;
+    padding: 6px 10px;
+    outline: none;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.title_bind:not([disabled]):focus {
+    border: 2px solid rgba(145, 71, 255, 1);
+}
+
+.template_title {
+    display: flex;
+    flex-direction: column;
+}
+
+.template_control > div {
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+    align-items: center;
+}
+
+.delete_template_button {
+    background: transparent;
+    transition: background 0.1s;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    height: 28px;
+    width: 28px;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+
+.delete_template_button[disabled] {
+    cursor: auto;
+}
+
+.delete_template_button:not([disabled]):active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.buttons_container {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.hotkey_container {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.hotkey_button {
+    width: 90px;
+    margin-top: 5px;
+    outline: none;
+}
+
+.hotkey_button[disabled] {
+    cursor: auto;
+    color: rgba(83, 83, 95, 0.38);
+    background: rgba(31, 31, 35, 1);
+}
+
+.title {
+    color: rgba(239, 239, 241, 1);
+    font-size: 18px;
+    font-family: Inter-SemiBold;
+}
+
+.hotkeys_title {
+    color: rgba(63, 66, 70, 1);
+    font-size: 13px;
+    font-family: Inter-SemiBold;
+}
+
+.textarea {
+    outline: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.70);
+    font-size: 13px;
+    height: 100%;
+    width: 100%;
+    resize: none;
+    border-radius: 6px;
+    border: 1px solid rgba(103, 103, 107, 1);
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(63, 66, 70, 1) rgba(24, 24, 27, 1);
+    white-space: wrap;
+}
+
+.messages {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    height: 100%;
+}
+
+@media (max-width: 800px) {
+    .editor {
+        width: 80vw;
+        height: 90vh;
+        padding: 20px;
+    }
+
+    .hotkey_container {
+        display: none;
+    }
+
+    .template_container {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .title_bind {
+        width: 100%;
+    }
+}

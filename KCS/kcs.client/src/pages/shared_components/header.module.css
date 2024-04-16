@@ -1,0 +1,106 @@
+@media (hover: hover) {
+    .admin_button:hover {
+        background-color: rgba(239, 239, 241, 0.06);
+    }
+}
+
+.header_container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background: rgba(24, 24, 27, 1);
+    gap: 15px;
+    padding: 11px;
+    box-shadow: 0px 0px 2px 0px rgba(0, 0, 0, 0.90), 0px 1px 2px 0px rgba(0, 0, 0, 0.90);
+    z-index: 1;
+}
+
+.logo_container {
+    display: flex;
+    gap: 11px;
+    padding: 0;
+}
+
+.logo_title {
+    display: flex;
+    align-items: center;
+    font-size: 32px;
+    font-family: Inter-SemiBold;
+}
+
+.logo_title > span:nth-child(1) {
+    color: rgba(255, 255, 255, 1);
+}
+
+.logo_title > span:nth-child(2) {
+    color: rgba(145, 71, 255, 1);
+}
+
+.worker_info {
+    flex-grow: 1;
+}
+
+.user_button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    height: fit-content;
+    width: fit-content;
+    align-items: center;
+    justify-content: center;
+}
+
+.user_button > span {
+    position: absolute;
+    color: rgba(145, 71, 255, 1);
+    font-size: 32px;
+    font-family: Inter-SemiBold;
+}
+
+.admin_button {
+    border: none;
+    background-color: transparent;
+    padding: 6px;
+    margin-right: 5px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.admin_button:active {
+    background-color: rgba(239, 239, 241, 0.12);
+}
+
+.admin_button > svg {
+    vertical-align: middle;
+}
+
+.worker_info {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+}
+
+.worker_info > div {
+    display: flex;
+    flex-direction: column;
+    padding: 5px 10px;
+    background: rgba(14, 14, 16, 1);
+    border-radius: 6px;
+    box-shadow: 0px 0px 2px 0px rgba(0, 0, 0, 0.90), 0px 1px 2px 0px rgba(0, 0, 0, 0.90);
+    justify-content: center;
+    align-items: center;
+}
+
+.worker_info > div > span:nth-child(1) {
+    font-size: 18px;
+    color: rgba(239, 239, 241, 1);
+}
+
+.worker_info > div > span:nth-child(2) {
+    font-size: 14px;
+    color: rgba(173, 173, 184, 1);
+}

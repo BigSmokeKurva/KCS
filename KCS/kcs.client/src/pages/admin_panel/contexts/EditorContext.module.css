@@ -1,0 +1,125 @@
+@media (hover: hover) {
+    .close_button:hover {
+        background-color: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.editor_container {
+    height: 100%;
+    width: 100%;
+    z-index: 2;
+    position: fixed;
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.10s;
+}
+
+.editor_container.open {
+    opacity: 1;
+}
+
+.editor_container.close {
+    opacity: 0;
+}
+
+.editor {
+    width: 63.5vw;
+    height: 78.7vh;
+    border-radius: 6px;
+    background: rgba(24, 24, 27, 1);
+    display: flex;
+    gap: 20px;
+    flex-direction: column;
+    left: calc(50% - 31.25vw);
+    position: absolute;
+    padding: 20px;
+    z-index: 2;
+}
+
+.overlay {
+    background: rgba(6, 6, 6, 0.79);
+    z-index: 1;
+    height: 100%;
+    width: 100%;
+    position: fixed;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0px 0px 11px 10px;
+    align-items: flex-start;
+}
+
+.header > span {
+    font-family: Inter-SemiBold;
+    font-size: 24px;
+    color: rgba(239, 239, 241, 1);
+}
+
+.close_button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.editor > span {
+    font-family: Inter-SemiBold;
+    font-size: 18px;
+    color: rgba(239, 239, 241, 1);
+}
+
+.textarea {
+    outline: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.70);
+    font-size: 13px;
+    height: 100%;
+    width: 100%;
+    resize: none;
+    border-radius: 6px;
+    border: 1px solid rgba(103, 103, 107, 1);
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(63, 66, 70, 1) rgba(24, 24, 27, 1);
+}
+
+.buttons_container {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.close_button {
+    height: 24px;
+    width: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    border-radius: 4px;
+}
+
+.close_button:active {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.close_button > svg {
+    height: 14.2px;
+    width: 14.2px;
+}
+
+@media (max-width: 768px) {
+    .editor_container {
+        justify-content: center;
+    }
+
+    .editor {
+        flex: auto;
+        margin: 15px;
+        left: 0;
+        position: static;
+    }
+}

@@ -1,0 +1,38 @@
+@font-face {
+    font-family: "Inter-Regular";
+    src: url("./assets/Inter-Regular.ttf");
+}
+
+@font-face {
+    font-family: "Inter-SemiBold";
+    src: url("./assets/Inter-SemiBold.ttf");
+}
+
+html,
+#root {
+    height: 100%;
+    width: 100%;
+    white-space: nowrap;
+    font-family: Inter-Regular;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(63, 66, 70, 1) rgba(24, 24, 27, 1);
+}
+
+#root {
+    display: flex;
+    flex-direction: column;
+}
+
+a {
+    vertical-align: middle;
+    text-decoration: none;
+}
+
+button,
+input {
+    font-family: Inter-Regular;
+}
+
+textarea{
+    white-space: pre;
+}

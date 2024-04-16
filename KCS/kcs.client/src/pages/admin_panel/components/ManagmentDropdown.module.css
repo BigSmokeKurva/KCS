@@ -1,0 +1,64 @@
+@media (hover: hover) {
+    .toggle_dropdown_button:hover {
+        background-color: rgba(255, 255, 255, 0.06);
+        border: none;
+        margin: 0;
+    }
+}
+
+.toggle_dropdown_button {
+    display: flex;
+    border: none;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.toggle_dropdown_button:active,
+.toggle_dropdown_button.open {
+    background-color: rgba(255, 255, 255, 0.12);
+    border: none;
+    margin: 0;
+}
+
+.toggle_dropdown_button > svg {
+    width: 20px;
+    height: 20px;
+}
+
+.dropdown_content {
+    width: fit-content;
+    min-width: 155px;
+    background: rgba(45, 45, 50, 1);
+    right: calc(100% - 24px);
+    top: 24px;
+}
+
+.dropdown_content > button {
+    text-align: left;
+    height: 30px;
+    font-size: 14px;
+    display: flex;
+    padding: 5px;
+}
+
+.dropdown_menu {
+    margin-top: 0;
+    margin-left: 10px;
+}
+
+.separator {
+    background: #3F4246;
+    height: 1px;
+    display: flex;
+}
+
+.button_with_checkbox {
+    display: flex;
+    justify-content: space-between;
+}
+
+.dropdown_content > button.delete_button {
+    color: rgba(196, 49, 75, 1);
+}

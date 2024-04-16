@@ -1,0 +1,71 @@
+@media (hover:hover) {
+    .binds_options_button:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.dropdown_container > div:nth-child(1) {
+    display: flex;
+    height: 40px;
+    background: rgba(31, 31, 35, 1);
+    color: rgba(239, 239, 241, 1);
+    padding: 0 10px 0 10px;
+    box-sizing: border-box;
+    align-items: center;
+    border: none;
+    border-bottom: rgba(0, 0, 0, 1);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: Inter-SemiBold;
+    user-select: none;
+}
+
+.dropdown_container > div:nth-child(1)[disabled] {
+    cursor: auto;
+}
+
+.dropdown_container > div:nth-child(1) > svg {
+    height: 20px;
+    width: 20px;
+    transition: transform 0.25s;
+}
+
+.dropdown_container.closed > div:nth-child(1) > svg {
+    transform: rotate(-180deg);
+}
+
+.dropdown_container > div:nth-child(1) > :nth-child(1) {
+    margin-right: auto;
+}
+
+.binds_options_button {
+    background: transparent;
+    transition: background 0.1s;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    border-radius: 4px;
+    margin-right: 4px;
+}
+
+.binds_options_button:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 768px) {
+    .dropdown_container > div:nth-child(1) > svg {
+        height: 20px;
+        width: 20px;
+        transition: transform 0.25s;
+    }
+
+    .dropdown_container.closed > div:nth-child(1) > svg{
+        transform: rotate(-180deg);
+    }
+}
