@@ -1,46 +1,49 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using KCS.Server.Database;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
-using KCS.Server.Database;
 
-namespace KCS.Server.Filters
+namespace KCS.Server.Filters;
+
+public class UserAuthorizationFilter(DatabaseContext db) : IAsyncAuthorizationFilter
 {
-    public class UserAuthorizationFilter(DatabaseContext db) : IAsyncAuthorizationFilter
-    {
-        private readonly DatabaseContext db = db;
-        public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
-        {
-            string auth_token;
-            if (context.HttpContext.Request.Path.StartsWithSegments("/api") && !context.HttpContext.Request.Path.StartsWithSegments("/api/auth/logout"))
-            {
-                context.HttpContext.Request.Headers.Remove("Cookie");
-                auth_token = context.HttpContext.Request.Headers["Authorization"];
-            }
-            else
-            {
-                auth_token = context.HttpContext.Request.Cookies["auth_token"];
-            }
-            if (!Guid.TryParse(auth_token, out Guid auth_token_uid) || !await db.Sessions.AnyAsync(x => x.AuthToken == auth_token_uid))
-            {
-                context.Result = new RedirectResult("/signin");
+    private readonly DatabaseContext _db = db;
 
-                // Очищаем все куки пользователя
-                foreach (var cookie in context.HttpContext.Request.Cookies.Keys)
-                {
-                    context.HttpContext.Response.Cookies.Delete(cookie);
-                }
-                return;
-            }
-            var user = await db.Users.FirstAsync(x => db.Sessions.Any(y => y.Id == x.Id && y.AuthToken == auth_token_uid));
-            if (user.Paused &&
-                !context.HttpContext.Request.Path.StartsWithSegments("/api/app/getusername") &&
-                !context.HttpContext.Request.Path.StartsWithSegments("/api/app/checkispause"))
-            {
-                context.Result = new RedirectResult("/pause");
-                return;
-            }
-            user.LastOnline = TimeHelper.GetUnspecifiedUtc();
-            await db.SaveChangesAsync();
+    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
+    {
+        string authToken;
+        if (context.HttpContext.Request.Path.StartsWithSegments("/api") &&
+            !context.HttpContext.Request.Path.StartsWithSegments("/api/auth/logout"))
+        {
+            context.HttpContext.Request.Headers.Remove("Cookie");
+            authToken = context.HttpContext.Request.Headers["Authorization"];
         }
+        else
+        {
+            authToken = context.HttpContext.Request.Cookies["auth_token"];
+        }
+
+        if (!Guid.TryParse(authToken, out var authTokenUid) ||
+            !await _db.Sessions.AnyAsync(x => x.AuthToken == authTokenUid))
+        {
+            context.Result = new RedirectResult("/signin");
+
+            // Очищаем все куки пользователя
+            foreach (var cookie in context.HttpContext.Request.Cookies.Keys)
+                context.HttpContext.Response.Cookies.Delete(cookie);
+            return;
+        }
+
+        var user = await _db.Users.FirstAsync(x => _db.Sessions.Any(y => y.Id == x.Id && y.AuthToken == authTokenUid));
+        if (user.Paused &&
+            !context.HttpContext.Request.Path.StartsWithSegments("/api/app/getusername") &&
+            !context.HttpContext.Request.Path.StartsWithSegments("/api/app/checkispause"))
+        {
+            context.Result = new RedirectResult("/pause");
+            return;
+        }
+
+        user.LastOnline = TimeHelper.GetUnspecifiedUtc();
+        await _db.SaveChangesAsync();
     }
 }

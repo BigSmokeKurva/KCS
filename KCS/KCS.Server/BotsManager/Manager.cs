@@ -1,139 +1,162 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using KCS.Server.Controllers.Models;
+using Microsoft.EntityFrameworkCore;
 using KCS.Server.Database;
 using KCS.Server.Database.Models;
 
 namespace KCS.Server.BotsManager
 {
-    public class Manager
+    public class Manager(DatabaseContext db)
     {
-        public static Dictionary<int, User> users = new();
-        public static bool IsConnected(int id, string botUsername)
-        {
-            if (!users.TryGetValue(id, out var user))
-                return false;
+        public static readonly Dictionary<int, User> Users = [];
 
-            return user.bots.ContainsKey(botUsername);
+        public bool IsConnected(int id, string botUsername)
+        {
+            return Users.TryGetValue(id, out var user) && user.Bots.ContainsKey(botUsername);
         }
-        public async static Task ConnectBot(int id, string botUsername, DatabaseContext db)
-        {
-            if (!users.TryGetValue(id, out var user))
-            {
 
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
-                await users[id].ConnectBot(botUsername, db);
+        public async Task ConnectBot(int id, string botUsername)
+        {
+            var configuration = await db.Configurations.FindAsync(id);
+            if (!Users.TryGetValue(id, out var user))
+            {
+                Users.Add(id, new User(id, configuration!.StreamerInfo));
+                user = Users[id];
+            }
+
+            user.ConnectBot(botUsername, configuration!);
+        }
+
+        public async Task DisconnectBot(int id, string botUsername)
+        {
+            if (!Users.TryGetValue(id, out var user))
+            {
+                var streamerInfo = await db.Configurations.Where(x => x.Id == id)
+                    .Select(x => x.StreamerInfo).FirstAsync();
+                Users.Add(id, new User(id, streamerInfo));
                 return;
             }
 
-            await user.ConnectBot(botUsername, db);
+            user.DisconnectBot(botUsername);
         }
-        public async static Task DisconnectBot(int id, string botUsername, DatabaseContext db)
-        {
-            if (!users.TryGetValue(id, out var user))
-            {
 
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
+        public async Task ConnectAllBots(int id)
+        {
+            var configuration = await db.Configurations.FindAsync(id);
+            if (!Users.TryGetValue(id, out var user))
+            {
+                Users.Add(id, new User(id, configuration!.StreamerInfo));
+                user = Users[id];
+            }
+
+            user.ConnectAllBots(configuration!);
+        }
+
+        public async Task DisconnectAllBots(int id)
+        {
+            if (!Users.TryGetValue(id, out var user))
+            {
+                var streamerInfo = await db.Configurations.Where(x => x.Id == id)
+                    .Select(x => x.StreamerInfo).FirstAsync();
+                Users.Add(id, new User(id, streamerInfo));
                 return;
             }
 
-            await user.DisconnectBot(botUsername);
+            user.DisconnectAllBots();
         }
-        public async static Task ConnectAllBots(int id, DatabaseContext db)
-        {
-            if (!users.TryGetValue(id, out var user))
-            {
 
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
-                await users[id].ConnectAllBots(db);
-                return;
+        public async Task Send(int id, SendMessageModel model)
+        {
+            if (!Users.TryGetValue(id, out var user))
+            {
+                var streamerInfo = await db.Configurations.Where(x => x.Id == id)
+                    .Select(x => x.StreamerInfo).FirstAsync();
+                Users.Add(id, new User(id, streamerInfo));
+                throw new Exception("Ошибка отправки сообщения");
             }
 
-            await user.ConnectAllBots(db);
+            await user.Send(model);
         }
-        public async static Task DisconnectAllBots(int id, DatabaseContext db)
-        {
-            if (!users.TryGetValue(id, out var user))
-            {
 
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
-                return;
+        public async Task Send(int id, string message, string botName)
+        {
+            if (!Users.TryGetValue(id, out var user))
+            {
+                var streamerInfo = await db.Configurations.Where(x => x.Id == id)
+                    .Select(x => x.StreamerInfo).FirstAsync();
+                Users.Add(id, new User(id, streamerInfo));
+                throw new Exception("Ошибка отправки сообщения");
             }
 
-            await user.DisconnectAllBots();
+            await user.Send(botName, message);
         }
-        public async static Task<bool> Send(int id, string botUsername, string message, string replyTo, DatabaseContext db)
+
+        public async Task<bool> SpamStarted(int id)
         {
-            if (!users.TryGetValue(id, out var user))
-            {
-
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
-                return false;
-            }
-
-            try
-            {
-                await user.Send(botUsername, message, replyTo);
-                return true;
-            }
-            catch { }
+            if (Users.TryGetValue(id, out var user)) return user.SpamStarted();
+            var streamerInfo = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerInfo)
+                .FirstAsync();
+            Users.Add(id, new User(id, streamerInfo));
             return false;
         }
-        public static async Task<bool> SpamStarted(int id, DatabaseContext db)
-        {
-            if (!users.TryGetValue(id, out var user))
-            {
 
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
-                return false;
-            }
-            return user.SpamStarted();
-        }
-        public static async Task StopSpam(int id, DatabaseContext db)
+        public async Task StopSpam(int id)
         {
-            if (!users.TryGetValue(id, out var user))
+            if (!Users.TryGetValue(id, out var user))
             {
-
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
+                var streamerInfo = await db.Configurations.Where(x => x.Id == id)
+                    .Select(x => x.StreamerInfo).FirstAsync();
+                Users.Add(id, new User(id, streamerInfo));
                 return;
             }
+
             await user.StopSpam();
         }
-        public static async Task StartSpam(int id, int threads, int delay, string[] messages, SpamMode mode, DatabaseContext db)
-        {
-            if (!users.TryGetValue(id, out var user))
-            {
 
-                var streamerUsername = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerUsername).FirstAsync();
-                users.Add(id, new User(id, streamerUsername));
-                user = users[id];
-                await user.StartSpam(threads, delay, messages, mode);
-                return;
-            }
-            await user.StartSpam(threads, delay, messages, mode);
-        }
-        public static async Task ChangeStreamerUsername(int id, string streamerUsername)
+        public async Task StartSpam(int id, int threads, int delay, string[] messages, SpamMode mode)
         {
-            if (!users.TryGetValue(id, out var user))
+            if (!Users.TryGetValue(id, out var user))
             {
-                users.Add(id, new User(id, streamerUsername));
-                return;
+                var streamerInfo = await db.Configurations.Where(x => x.Id == id)
+                    .Select(x => x.StreamerInfo).FirstAsync();
+                Users.Add(id, new User(id, streamerInfo));
+                user = Users[id];
             }
-            await user.ChangeStreamerUsername(streamerUsername);
-        }
-        public static async Task Remove(int id, DatabaseContext db)
-        {
-            if (!users.TryGetValue(id, out var user))
-            {
-                return;
-            }
-            await user.Remove(db);
 
+            user.StartSpam(threads, delay, messages, mode);
+        }
+
+        public async Task ChangeStreamerUsername(int id, StreamerInfo streamerInfo)
+        {
+            if (!Users.TryGetValue(id, out var user))
+            {
+                Users.Add(id, new User(id, streamerInfo));
+                return;
+            }
+
+            await user.ChangeStreamerUsername(streamerInfo);
+        }
+
+        public async Task Remove(int id)
+        {
+            if (!Users.TryGetValue(id, out var user))
+            {
+                return;
+            }
+
+            if (user.SpamStarted())
+            {
+                await user.StopSpam();
+                await db.AddLog(user.Id, "Остановил спам. (Бездействие)", LogType.Action);
+            }
+
+
+            if (user.Bots.Count != 0)
+            {
+                user.DisconnectAllBots();
+                await db.AddLog(user.Id, "Отключил всех ботов. (Бездействие)", LogType.Action);
+            }
+
+            Users.Remove(id);
         }
     }
 }

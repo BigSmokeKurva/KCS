@@ -1,7 +1,6 @@
-﻿namespace KCS.Server.Controllers.Models
+﻿namespace KCS.Server.Controllers.Models;
+
+public class FollowAllBotsModel
 {
-    public class FollowAllBotsModel
-    {
-        public int Delay { get; set; }
-    }
+    public int Delay { get; set; }
 }

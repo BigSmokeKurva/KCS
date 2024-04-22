@@ -1,7 +1,6 @@
-﻿namespace KCS.Server.Controllers.Models
+﻿namespace KCS.Server.Controllers.Models;
+
+public class ConnectBotModel
 {
-    public class ConnectBotModel
-    {
-        public string BotUsername { get; set; }
-    }
+    public string BotUsername { get; set; }
 }

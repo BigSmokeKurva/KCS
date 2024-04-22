@@ -1,17 +1,20 @@
-using Microsoft.EntityFrameworkCore;
-using NLog.Web;
-using Npgsql;
 using KCS.Server.BotsManager;
 using KCS.Server.Database;
+using KCS.Server.Database.Models;
 using KCS.Server.Filters;
 using KCS.Server.Follow;
 using KCS.Server.Services;
+using Microsoft.EntityFrameworkCore;
+using NLog;
+using NLog.Web;
+using Npgsql;
+using User = KCS.Server.Database.Models.User;
 
-namespace KCS.Server.Server;
+namespace KCS.Server;
 
 public class Program
 {
-    private static NpgsqlDataSource dataSource;
+    private static NpgsqlDataSource? _dataSource;
 
     public static async Task Main(string[] args)
     {
@@ -42,8 +45,8 @@ public class Program
         ConfigureApp(app);
 
         // Передача конфига статичным классам
-        User.ConnectThreads = app.Configuration.GetSection("App").GetValue<int>("ConnectThreads");
-        User.DisconnectThreads = app.Configuration.GetSection("App").GetValue<int>("DisconnectThreads");
+        app.Configuration.GetSection("App").GetValue<int>("ConnectThreads");
+        app.Configuration.GetSection("App").GetValue<int>("DisconnectThreads");
         TokenCheck.Threads = app.Configuration.GetSection("TokenCheck").GetValue<int>("Threads");
         FollowBot.Threads = app.Configuration.GetSection("FollowBot").GetValue<int>("Threads");
 
@@ -52,13 +55,14 @@ public class Program
 
         // Запуск приложения
         await app.RunAsync();
-
     }
+
     private static void ConfigurePlaywright()
     {
-        Microsoft.Playwright.Program.Main(new string[] { "install", "chromium" });
+        Microsoft.Playwright.Program.Main(["install", "firefox"]);
         Console.Clear();
     }
+
     private static void ConfigurePostgresDataSource(IConfiguration configuration)
     {
         var connectionStringBuilder = new NpgsqlConnectionStringBuilder
@@ -66,27 +70,29 @@ public class Program
             Host = configuration.GetSection("Database:Host").Value,
             Username = configuration.GetSection("Database:Username").Value,
             Password = configuration.GetSection("Database:Password").Value,
-            Database = configuration.GetSection("Database:DatabaseName").Value,
+            Database = configuration.GetSection("Database:DatabaseName").Value
         };
 
         // Создание источника данных с поддержкой динамического JSON
-        dataSource = new NpgsqlDataSourceBuilder(connectionStringBuilder.ConnectionString)
+        _dataSource = new NpgsqlDataSourceBuilder(connectionStringBuilder.ConnectionString)
             .EnableDynamicJson()
             .Build();
     }
+
     private static void ConfigureLogging(WebApplicationBuilder builder)
     {
-        NLog.LogManager.Setup().LoadConfigurationFromAppSettings();
+        LogManager.Setup().LoadConfigurationFromAppSettings();
         builder.Logging.ClearProviders();
         builder.Host.UseNLog();
     }
+
     private static void ConfigureServices(WebApplicationBuilder builder)
     {
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
         builder.Services.AddDbContext<DatabaseContext>(optionsBuilder =>
         {
-            optionsBuilder.UseLazyLoadingProxies().UseNpgsql(dataSource);
+            optionsBuilder.UseLazyLoadingProxies().UseNpgsql(_dataSource ?? throw new InvalidOperationException());
         });
 
         builder.Services.AddControllers();
@@ -96,20 +102,20 @@ public class Program
         builder.Services.AddHostedService<SessionExpiresCheckService>();
         builder.Services.AddHostedService<LastOnlineCheckService>();
         builder.Services.AddHostedService<InviteCodeExpiresCheckService>();
-        builder.Services.AddSingleton<HttpClient>();
+        builder.Services.AddSingleton(new HttpClient(new HttpClientHandler
+        {
+            UseCookies = false
+        }));
+        builder.Services.AddScoped<Manager>();
 
         if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
-        {
             builder.WebHost.ConfigureKestrel(options =>
             {
                 options.ListenAnyIP(80);
-                options.ListenAnyIP(443, listenOptions =>
-                {
-                    listenOptions.UseHttps("cert.pfx", "iop3360A");
-                });
+                options.ListenAnyIP(443, listenOptions => { listenOptions.UseHttps("cert.pfx", "iop3360A"); });
             });
-        }
     }
+
     private static async Task InitializeRootUserAsync(WebApplication app)
     {
         var serviceProvider = ServiceProviderAccessor.ServiceProvider;
@@ -117,39 +123,40 @@ public class Program
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
 
-        var username = "root";
+        const string username = "root";
         var password = app.Configuration.GetSection("RootAccount:Password").Value;
-        db.Database.EnsureCreated();
+        await db.Database.EnsureCreatedAsync();
         var existingUser = db.Users
             .FirstOrDefault(u => u.Username == username);
 
         if (existingUser is not null)
         {
             existingUser.Password = password;
-            db.SaveChanges();
+            await db.SaveChangesAsync();
         }
         else
         {
-            var newUser = new Database.Models.User
+            var newUser = new User
             {
                 Username = username,
                 Password = password,
                 Admin = true,
-                Configuration = new Database.Models.Configuration(),
+                Configuration = new Configuration()
             };
 
             await db.Users.AddAsync(newUser);
 
             await db.SaveChangesAsync();
         }
+
         await db.SaveChangesAsync();
     }
+
     private static void ConfigureApp(WebApplication app)
     {
         app.UseDefaultFiles();
         app.UseStaticFiles();
         app.UseHttpsRedirection();
-        //app.UseMiddleware<PagesAccessMiddleware>();
         app.MapControllers();
         app.MapFallbackToFile("/index.html");
     }

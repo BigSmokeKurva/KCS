@@ -43,7 +43,7 @@ function App({ headerRef, isMobile }) {
 
   const editStreamerUsername = useCallback(async () => {
     const streamerUsername = editStreamerUsernameRef.current.getInputValue();
-    if (streamerUsername === user.streamerUsername) return;
+    if (streamerUsername === user.streamerInfo.username) return;
     var auth_token = Cookies.get('auth_token');
     var response = await fetch('/api/app/updateStreamerUsername?username=' + streamerUsername, {
       method: 'PUT',
@@ -53,20 +53,20 @@ function App({ headerRef, isMobile }) {
       },
     });
 
-      if (response.redirected) {
-          window.location.href = response.url;
-      }
+    if (response.redirected) {
+      window.location.href = response.url;
+    }
 
     var result = await response.json();
 
     if (result.status !== "ok") {
       showNotification(result.message, "error");
-      editStreamerUsernameRef.current.setInputValue(user.streamerUsername);
+      editStreamerUsernameRef.current.setInputValue(user.streamerInfo.username);
       return;
     }
     showNotification("Ник стримера успешно обновлен", "success");
 
-    setUser({ ...user, streamerUsername });
+    getUser();
     botListRef.current.setBots(botListRef.current.getBots().map(bot => ({
       ...bot,
       isConnected: false,
@@ -76,46 +76,26 @@ function App({ headerRef, isMobile }) {
   });
 
   const getViewerCount = useCallback(async () => {
-    const data = [
-      {
-        "operationName": "UseViewCount",
-        "variables": {
-          "channelLogin": user.streamerUsername
-        },
-        "extensions": {
-          "persistedQuery": {
-            "version": 1,
-            "sha256Hash": "00b11c9c428f79ae228f30080a06ffd8226a1f068d6f52fbc057cbde66e994c2"
-          }
-        }
-      }
-    ]
-    var viewersCount = 0;
-    const response = await fetch('https://gql.twitch.tv/gql', {
-      method: 'POST',
+    if (!user.streamerInfo.username) {
+      setStreamOnline(false);
+      headerRef.current.setViewersCount("-");
+      return;
+    }
+    // Получение информации о стриме
+    var response = await fetch('https://kick.com/api/v1/channels/' + user.streamerInfo.username, {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko"
-      },
-      body: JSON.stringify(data)
-    });
-      if (response.redirected) {
-          window.location.href = response.url;
       }
-    const result = await response.json();
-    if (result[0].data.user === null) {
-      viewersCount = "-";
+    });
+    var result = await response.json();
+    if (!result.livestream){
       setStreamOnline(false);
+      headerRef.current.setViewersCount("-");
+      return;
     }
-    else if (result[0].data.user.stream === null) {
-      viewersCount = "-";
-      setStreamOnline(false);
-    }
-    else {
-      viewersCount = result[0].data.user.stream.viewersCount;
-      setStreamOnline(true);
-    }
-    headerRef.current.setViewersCount(viewersCount);
+    setStreamOnline(true);
+    headerRef.current.setViewersCount(result.livestream.viewer_count);
   });
 
   const getBinds = useCallback(async () => {
@@ -127,9 +107,9 @@ function App({ headerRef, isMobile }) {
         'Authorization': auth_token
       }
     });
-      if (response.redirected) {
-          window.location.href = response.url;
-      }
+    if (response.redirected) {
+      window.location.href = response.url;
+    }
     var result = await response.json();
     setBinds(result);
   });
@@ -155,9 +135,9 @@ function App({ headerRef, isMobile }) {
         bindname: bind.title
       })
     });
-      if (response.redirected) {
-          window.location.href = response.url;
-      }
+    if (response.redirected) {
+      window.location.href = response.url;
+    }
 
     const result = await response.json();
 
@@ -220,17 +200,17 @@ function App({ headerRef, isMobile }) {
           'Authorization': auth_token
         }
       });
-        if (response.redirected) {
-            window.location.href = response.url;
-        }
+      if (response.redirected) {
+        window.location.href = response.url;
+      }
     }, 15000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (user === null) return;
-    editStreamerUsernameRef.current.setInputValue(user.streamerUsername);
-    headerRef.current.setStreamerUsername(user.streamerUsername.length === 0 ? "-" : user.streamerUsername);
+    editStreamerUsernameRef.current.setInputValue(user.streamerInfo.username);
+    headerRef.current.setStreamerUsername(user.streamerInfo.username.length === 0 ? "-" : user.streamerInfo.username);
     getViewerCount();
     const interval = setInterval(getViewerCount, 5000);
     return () => clearInterval(interval);
@@ -247,7 +227,7 @@ function App({ headerRef, isMobile }) {
               </DropdownContainer>
               <div className={styles.vertical_grid}>
                 <DropdownContainer title="Стрим" _isOpen={true} disabled={!isMobile} buttonStyle={{ height: "30px" }}>
-                  <Stream streamerUsername={user.streamerUsername} isOnline={streamOnline} />
+                  <Stream streamerUsername={user.streamerInfo.username} isOnline={streamOnline} />
                 </DropdownContainer>
                 <div className={styles.horizontal_grid}>
                   <BindsDropdownContainer callbackFunc={getBinds} title="Панель биндов" _isOpen={!isMobile} disabled={!isMobile} buttonStyle={{ height: "30px" }}>
@@ -265,7 +245,7 @@ function App({ headerRef, isMobile }) {
                 {
                   user.username &&
                   <DropdownContainer title="Чат" _isOpen={true} disabled={!isMobile} buttonStyle={{ height: "30px" }}>
-                    <Chat botListRef={botListRef} streamerUsername={user.streamerUsername} />
+                    <Chat botListRef={botListRef} streamerInfo={user.streamerInfo} />
                   </DropdownContainer>
                 }
               </div>

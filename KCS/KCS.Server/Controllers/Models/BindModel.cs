@@ -1,8 +1,7 @@
-﻿namespace KCS.Server.Controllers.Models
+﻿namespace KCS.Server.Controllers.Models;
+
+public class BindModel
 {
-    public class BindModel
-    {
-        public string Name { get; set; }
-        public string[] Messages { get; set; }
-    }
+    public string Name { get; set; }
+    public string[] Messages { get; set; }
 }

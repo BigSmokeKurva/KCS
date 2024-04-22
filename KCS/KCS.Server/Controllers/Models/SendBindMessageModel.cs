@@ -1,8 +1,7 @@
-﻿namespace KCS.Server.Controllers.Models
+﻿namespace KCS.Server.Controllers.Models;
+
+public class SendBindMessageModel
 {
-    public class SendBindMessageModel
-    {
-        public string bindname { get; set; }
-        public string botname { get; set; }
-    }
+    public string bindname { get; set; }
+    public string botname { get; set; }
 }

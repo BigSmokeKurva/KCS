@@ -22,7 +22,7 @@ function Stream({ streamerUsername, isOnline }) {
         (isOnline) ? (
             <iframe
                 ref={iframeRef}
-                src={`https://player.twitch.tv/?channel=${streamerUsername}&parent=${window.location.hostname}`}
+                src={`https://player.kick.com/${streamerUsername}?autoplay=true`}
                 width="100%"
                 frameBorder="0"
                 scrolling="no"

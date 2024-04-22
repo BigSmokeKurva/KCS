@@ -1,197 +1,172 @@
-﻿using System.Collections.Concurrent;
-using KCS.Server.Database;
+﻿using KCS.Server.Controllers.Models;
 using KCS.Server.Database.Models;
 
-namespace KCS.Server.BotsManager
-{
-    public class User(int id, string streamerUsername)
-    {
-        public int id { get; set; } = id;
-        private string streamerUsername = streamerUsername;
-        public Dictionary<string, Bot> bots = [];
-        public SpamMode spamMode = SpamMode.Random;
-        internal List<Task> spamTasks = [];
-        private CancellationTokenSource spamCancellationToken = null;
-        private static readonly Random rnd = new();
-        internal static int ConnectThreads;
-        internal static int DisconnectThreads;
-        internal async Task ConnectBot(string botname, DatabaseContext db)
-        {
-            if (bots.ContainsKey(botname))
-            {
-                return;
-            }
-            var configuration = await db.Configurations.FindAsync(id);
-            if (!configuration.Tokens.Any(x => x.Username == botname))
-            {
-                throw new Exception("Токен не найден.");
-            }
-            var token = configuration.Tokens.First(x => x.Username == botname);
-            var bot = new Bot(botname, token.Token, streamerUsername, token.Proxy);
-            await bot.Connect();
-            bots.Add(botname, bot);
-        }
-        internal async Task DisconnectBot(string botname)
-        {
-            if (!bots.TryGetValue(botname, out var bot))
-                return;
-            await bot.Disconnect();
-            bots.Remove(botname);
-        }
-        internal async Task ConnectAllBots(DatabaseContext db)
-        {
-            var configuration = await db.Configurations.FindAsync(id);
-            var bots = configuration.Tokens;
-            if (bots.Count == this.bots.Count)
-                return;
-            ConcurrentDictionary<string, Bot> keyValuePairs = new();
-            await Parallel.ForEachAsync(bots, new ParallelOptions() { MaxDegreeOfParallelism = ConnectThreads }, async (bot, e) =>
-            {
-                try
-                {
-                    if (this.bots.ContainsKey(bot.Username))
-                        return;
-                    var _bot = new Bot(bot.Username, bot.Token, streamerUsername, bot.Proxy);
-                    await _bot.Connect();
-                    keyValuePairs.TryAdd(bot.Username, _bot);
-                }
-                catch
-                {
-                }
-            });
-            foreach (var pair in keyValuePairs)
-            {
-                this.bots.Add(pair.Key, pair.Value);
-            }
-        }
-        internal async Task DisconnectAllBots()
-        {
-            if (!bots.Any())
-                return;
-            await Parallel.ForEachAsync(bots, new ParallelOptions() { MaxDegreeOfParallelism = DisconnectThreads }, async (bot, e) =>
-            {
-                try
-                {
-                    await bot.Value.Disconnect();
-                }
-                catch { }
-            });
+namespace KCS.Server.BotsManager;
 
-            bots.Clear();
-        }
-        internal async Task Send(string botname, string message, string replyTo)
+public class User(int id, StreamerInfo streamerInfo)
+{
+    private static readonly Random Rnd = new();
+    private readonly List<Task> _spamTasks = [];
+    public readonly Dictionary<string, Bot> Bots = [];
+    private CancellationTokenSource? _spamCancellationToken;
+    public int Id { get; set; } = id;
+
+    internal void ConnectBot(string botName, Configuration configuration)
+    {
+        if (Bots.ContainsKey(botName)) return;
+
+        var token = configuration.Tokens.FirstOrDefault(x => x?.Username == botName, null);
+        _ = token ?? throw new Exception("Токен не найден");
+
+        var bot = new Bot(token, (int)streamerInfo.ChatroomId!);
+        Bots.Add(botName, bot);
+    }
+
+    internal void DisconnectBot(string botName)
+    {
+        try
         {
-            if (!bots.TryGetValue(botname, out var bot))
+            Bots[botName].Dispose();
+        }
+        catch
+        {
+            // ignored
+        }
+
+        Bots.Remove(botName);
+    }
+
+    internal void ConnectAllBots(Configuration configuration)
+    {
+        var bots = configuration.Tokens;
+        if (bots.Count == Bots.Count)
+            return;
+        foreach (var bot in (bots ?? throw new InvalidOperationException()).Where(bot =>
+                     !Bots.ContainsKey(bot.Username)))
+            Bots.Add(bot.Username, new Bot(bot, (int)streamerInfo.ChatroomId!));
+    }
+
+    internal void DisconnectAllBots()
+    {
+        if (Bots.Count == 0)
+            return;
+
+        foreach (var bot in Bots)
+            try
+            {
+                bot.Value.Dispose();
+            }
+            catch
+            {
+                // ignored
+            }
+
+        Bots.Clear();
+    }
+
+    internal async Task Send(SendMessageModel model)
+    {
+        if (!Bots.TryGetValue(model.BotName, out var bot))
+            return;
+
+        await bot.Send(model);
+    }
+
+    internal async Task Send(string botName, string message)
+    {
+        if (!Bots.TryGetValue(botName, out var bot))
+            return;
+
+        await bot.Send(message);
+    }
+
+    internal bool SpamStarted()
+    {
+        return _spamTasks.Count != 0;
+    }
+
+    internal async Task StopSpam()
+    {
+        await _spamCancellationToken!.CancelAsync();
+        // ждем пока все потоки остановятся
+        while (_spamTasks.Any(x => x.Status == TaskStatus.Running)) await Task.Delay(200);
+
+        _spamCancellationToken?.Dispose();
+        _spamTasks.Clear();
+        _spamCancellationToken = null;
+    }
+
+    internal void StartSpam(int threads, int delay, string[] messages, SpamMode mode)
+    {
+        _spamCancellationToken = new CancellationTokenSource();
+        if (mode == SpamMode.Random)
+            for (var i = 0; i < threads; i++)
+                _spamTasks.Add(SpamThread(delay, messages));
+        else
+            _spamTasks.Add(SpamThreadModeList(Bots.Values.Take(threads).ToArray(), delay,
+                [.. messages]));
+    }
+
+    private async Task SpamThread(int delay, IReadOnlyList<string> messages)
+    {
+        delay *= 1000;
+        while (_spamCancellationToken is not null && !_spamCancellationToken.IsCancellationRequested)
+        {
+            if (Bots.Count == 0) await Task.Delay(delay, _spamCancellationToken.Token);
+
+            try
+            {
+                var bot = Bots.Values.ElementAt(Rnd.Next(0, Bots.Count));
+                await bot.Send(messages[Rnd.Next(0, messages.Count)], _spamCancellationToken.Token);
+                await Task.Delay(delay, _spamCancellationToken.Token);
+            }
+            catch (TaskCanceledException)
+            {
                 return;
-            await bot.Send(message, replyTo);
-        }
-        internal bool SpamStarted()
-        {
-            return spamTasks.Any();
-        }
-        internal async Task StopSpam()
-        {
-            spamCancellationToken?.Cancel();
-            // ждем пока все потоки остановятся
-            while (spamTasks.Any(x => x.Status == TaskStatus.Running))
-            {
-                await Task.Delay(200);
             }
-            spamCancellationToken?.Dispose();
-            spamTasks.Clear();
-            spamCancellationToken = null;
-        }
-        internal async Task StartSpam(int threads, int delay, string[] messages, SpamMode mode)
-        {
-            spamCancellationToken = new();
-            spamMode = mode;
-            if (mode == SpamMode.Random)
+            catch
             {
-                for (int i = 0; i < threads; i++)
-                {
-                    spamTasks.Add(SpamThread(delay, messages));
-                }
-            }
-            else
-            {
-                spamTasks.Add(SpamThreadModeList(bots.Values.Take(threads).ToArray(), delay, [.. messages]));
+                // ignored
             }
         }
-        internal async Task SpamThread(int delay, string[] messages)
-        {
-            delay *= 1000;
-            while (spamCancellationToken is not null && !spamCancellationToken.IsCancellationRequested)
+    }
+
+    private async Task SpamThreadModeList(Bot[] bots, int delay, IList<string> messages)
+    {
+        delay *= 1000;
+        while (_spamCancellationToken is not null && !_spamCancellationToken.IsCancellationRequested &&
+               messages.Count > 0)
+            foreach (var bot in bots)
             {
-                if (!bots.Any())
-                {
-                    await Task.Delay(delay, spamCancellationToken.Token);
-                }
                 try
                 {
-                    var bot = bots.Values.ElementAt(rnd.Next(0, bots.Count));
-                    await bot.Send(messages[rnd.Next(0, messages.Length)], null, spamCancellationToken);
-                    await Task.Delay(delay, spamCancellationToken.Token);
+                    await bot.Send(messages.First(), _spamCancellationToken.Token);
+                    messages.RemoveAt(0);
                 }
                 catch (TaskCanceledException)
                 {
                     return;
                 }
-                catch { }
-            }
-        }
-        internal async Task SpamThreadModeList(Bot[] bots, int delay, List<string> messages)
-        {
-            delay *= 1000;
-            while (spamCancellationToken is not null && !spamCancellationToken.IsCancellationRequested && messages.Any())
-            {
-                foreach (var bot in bots)
+                catch
                 {
-                    try
-                    {
-                        await bot.Send(messages.First(), null, spamCancellationToken);
-                        messages.RemoveAt(0);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        return;
-                    }
-                    catch { }
-                    await Task.Delay(delay, spamCancellationToken.Token);
+                    // ignored
                 }
-            }
-            spamCancellationToken?.Dispose();
-            spamTasks.Clear();
-            spamCancellationToken = null;
-        }
-        internal async Task ChangeStreamerUsername(string streamerUsername)
-        {
-            if (SpamStarted())
-            {
-                await StopSpam();
-            }
-            if (bots.Any())
-            {
-                await DisconnectAllBots();
-            }
-            bots.Clear();
-            this.streamerUsername = streamerUsername;
-        }
-        internal async Task Remove(DatabaseContext db)
-        {
 
-            if (SpamStarted())
-            {
-                await db.AddLog(id, "Остановил спам. (Бездействие)", Database.Models.LogType.Action);
-                await StopSpam();
+                await Task.Delay(delay, _spamCancellationToken.Token);
             }
-            if (bots.Any())
-            {
-                await db.AddLog(id, "Отключил всех ботов. (Бездействие)", Database.Models.LogType.Action);
-                await DisconnectAllBots();
-            }
-            await db.SaveChangesAsync();
-            Manager.users.Remove(id);
-        }
+
+        _spamCancellationToken?.Dispose();
+        _spamTasks.Clear();
+        _spamCancellationToken = null;
     }
 
+    internal async Task ChangeStreamerUsername(StreamerInfo newStreamerInfo)
+    {
+        if (SpamStarted()) await StopSpam();
+
+        if (Bots.Count > 0) DisconnectAllBots();
+
+        Bots.Clear();
+        streamerInfo = newStreamerInfo;
+    }
 }

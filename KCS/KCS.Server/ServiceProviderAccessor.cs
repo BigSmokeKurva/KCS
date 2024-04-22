@@ -1,7 +1,6 @@
-﻿namespace KCS.Server
+﻿namespace KCS.Server;
+
+public static class ServiceProviderAccessor
 {
-    public static class ServiceProviderAccessor
-    {
-        public static IServiceProvider ServiceProvider { get; set; }
-    }
+    public static IServiceProvider? ServiceProvider { get; set; }
 }

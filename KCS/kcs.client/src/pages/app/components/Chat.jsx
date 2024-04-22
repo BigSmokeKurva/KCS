@@ -4,9 +4,8 @@ import classNames from 'classnames';
 import Cookies from 'js-cookie';
 import { NotificationsContext } from '../../../contexts/notification/NotificationsContext';
 
-function Chat({ botListRef, streamerUsername }) {
+function Chat({ botListRef, streamerInfo }) {
     const [messages, setMessages] = useState([]);
-    const usernamesWithColors = useRef({});
     const [scrollAtBottom, setScrollAtBottom] = useState(true);
     const listContainerRef = useRef(null);
     const [isRandom, setIsRandom] = useState(false);
@@ -18,48 +17,28 @@ function Chat({ botListRef, streamerUsername }) {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        if (streamerUsername === "" && !streamerUsername) {
+        if (streamerInfo.username === "" && !streamerInfo.username) {
             return;
         }
-        const generateRandomNickname = () => {
-            const randomNum = Math.floor(Math.random() * 1000000);
-            return `justinfan${randomNum}`;
-        };
-        const websocket = new WebSocket('wss://irc-ws.chat.twitch.tv/');
+        const websocket = new WebSocket('wss://ws-us2.pusher.com/app/eb1d5f283081a78b932c?protocol=7&client=js&version=7.6.0&flash=false');
         websocket.onopen = () => {
-            const nickname = generateRandomNickname();
-            websocket.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
-            websocket.send(`NICK ${nickname}`);
-            websocket.send(`USER ${nickname} 8 * :${nickname}`);
-            websocket.send(`JOIN #${streamerUsername}`);
+            websocket.send(`{"event":"pusher:subscribe","data":{"auth":"","channel":"chatrooms.${streamerInfo.chatroomId}.v2"}}`);
         };
 
         websocket.onmessage = (e) => {
-            if (e.data.includes("PING")) {
-                websocket.send("PONG");
+            const json = JSON.parse(e.data);
+            if (json.event !== 'App\\Events\\ChatMessageEvent') {
                 return;
             }
+            json.data = JSON.parse(json.data);
+            console.log(json);
 
-            if (!e.data.includes("PRIVMSG")) {
-                return;
-            }
-            const badgesRegex = /badges=([^;]+)/;
-            const tmiSentTsRegex = /tmi-sent-ts=(\d+)/;
-            const idRegex = /id=([^;]+)/;
-            const usernameRegex = /display-name=([^;]+)/;
-            const messageRegex = /PRIVMSG #[\w-]+ :(.+)/;
-
-            const rolesMatch = e.data.match(badgesRegex);
-
-            const roles = rolesMatch ? rolesMatch[1].split(",").map(badge => badge.split('/')[0]) : [];
-            const time = new Date(parseInt(e.data.match(tmiSentTsRegex)[1]));
-            const id = e.data.match(idRegex)[1];
-            const username = e.data.match(usernameRegex)[1];
-            const msg = e.data.match(messageRegex)[1];
-            const colorIndex = usernamesWithColors[username] === undefined ? Math.floor(Math.random() * 20) + 1 : usernamesWithColors[username];
-            if (usernamesWithColors[username] === undefined) {
-                usernamesWithColors[username] = colorIndex;
-            }
+            const id = json.data.id;
+            const time = new Date(json.data.created_at);
+            const username = json.data.sender.username;
+            const msg = json.data.content;
+            const color = json.data.sender.identity.color;
+            const roles = json.data.sender.identity.badges.map(badge => badge.type);
 
             const message = {
                 time: time.toLocaleTimeString(),
@@ -67,7 +46,10 @@ function Chat({ botListRef, streamerUsername }) {
                 roles,
                 text: msg,
                 id,
-                colorIndex,
+                color,
+                metadata: json.data.metadata,
+                type: json.data.type,
+                sender: json.data.sender,
             };
             setMessages((prev) => [...prev.slice(-99), message]);
         };
@@ -77,7 +59,7 @@ function Chat({ botListRef, streamerUsername }) {
             setMessages([]);
             setReplyMessage(null);
         }
-    }, [streamerUsername]);
+    }, [streamerInfo.username]);
 
     const handleScroll = (event) => {
         const element = event.currentTarget;
@@ -106,12 +88,29 @@ function Chat({ botListRef, streamerUsername }) {
         var data = {
             message: inputValue,
             botname: bot.username,
-            replyTo: replyMessage ? replyMessage.id : null
+            Metadata: replyMessage ?
+                {
+                    OriginalMessage: {
+                        id: replyMessage.id,
+                        content: replyMessage.text,
+                    },
+                    OriginalSender: {
+                        id: replyMessage.sender.id,
+                        username: replyMessage.username,
+                    }
+                } : null
         };
         if (inputValue === "") {
             showNotification("Невозможно отправить пустое сообщение", "error");
             return;
         }
+
+        if (!lastMessages.includes(inputValue)) {
+            setLastMessages((prev) => [...prev.slice(-4), inputValue]);
+        }
+        setInputValue("");
+        replyMessage && setReplyMessage(null);
+
         const response = await fetch("/api/app/sendmessage", {
             method: "POST",
             headers: {
@@ -129,12 +128,6 @@ function Chat({ botListRef, streamerUsername }) {
             showNotification(result.message, "error");
             return;
         }
-
-        if (!lastMessages.includes(inputValue)) {
-            setLastMessages((prev) => [...prev.slice(-4), inputValue]);
-        }
-        setInputValue("");
-        replyMessage && setReplyMessage(null);
     });
 
     useEffect(() => {
@@ -187,12 +180,18 @@ function Chat({ botListRef, streamerUsername }) {
                                         )}>S</span>
                                     }
 
-                                    <span className={classNames(
-                                        styles.message_username,
-                                        styles[`color${message.colorIndex}`]
-
-                                    )}>{message.username}<span>:</span></span>
-                                    <span className={styles.message_text}>{message.text}</span>
+                                    <span
+                                        className={classNames(
+                                            styles.message_username,
+                                        )}
+                                        style={{ color: message.color }}
+                                    >
+                                        {message.username}
+                                        <span>:</span>
+                                    </span>
+                                    <span className={styles.message_text}>
+                                        {message.type === "reply" ? `@${message.metadata.original_sender.username} ${message.text}` : message.text}
+                                    </span>
                                 </div>
                                 <button className={styles.reply_message_button} onClick={() => { setReplyMessage(message) }}></button>
                             </div>

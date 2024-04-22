@@ -1,7 +1,6 @@
-﻿namespace KCS.Server.Database.Models
+﻿namespace KCS.Server.Database.Models;
+
+public class FilterWord
 {
-    public class FilterWord
-    {
-        public string Word { get; set; }
-    }
+    public string Word { get; set; }
 }

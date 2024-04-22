@@ -9,7 +9,7 @@ const Header = forwardRef((props, ref) => {
     const [username, setUsername] = useState(props.username);
     const [isAdmin, setIsAdmin] = useState((props.page === "admin-panel" || props.page === "invite-codes") ? true : props.isAdmin);
     const [streamerUsername, setStreamerUsername] = useState("");
-    const [viewersCount, setViewersCount] = useState(0);
+    const [viewersCount, setViewersCount] = useState("-");
     const [botsCount, setBotsCount] = useState(0);
     const navigate = useNavigate();
 
