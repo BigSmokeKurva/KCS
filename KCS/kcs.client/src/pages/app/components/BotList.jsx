@@ -126,7 +126,7 @@ const BotList = forwardRef((props, ref) => {
     }, [bots]);
 
     useEffect(() => {
-        if(props.isMobile) return;
+        if (props.isMobile) return;
         if (selectedBotRef.current && isButtonSelect.current) {
             selectedBotRef.current.scrollIntoView({
                 behavior: "smooth",
@@ -206,8 +206,10 @@ const BotList = forwardRef((props, ref) => {
                     showNotification(data.message, "error");
                     return;
                 }
-                showNotification("Все аккаунты добавлены в очередь", "success");
+
+                showNotification("Все подключенные аккаунты добавлены в очередь", "success");
                 getBots();
+
             }
         });
     });
@@ -233,7 +235,7 @@ const BotList = forwardRef((props, ref) => {
                     showNotification(data.message, "error");
                     return;
                 }
-                showNotification("Все аккаунты добавлены в очередь", "success");
+                showNotification("Все подключенные аккаунты добавлены в очередь", "success");
                 getBots();
             }
         });

@@ -15,7 +15,11 @@ namespace KCS.Server.Controllers
     [Route("api/admin")]
     [ApiController]
     [TypeFilter(typeof(AdminAuthorizationFilter))]
-    public class AdminPanelApiController(DatabaseContext db, Manager manager, HttpClient client) : ControllerBase
+    public class AdminPanelApiController(
+        DatabaseContext db,
+        Manager manager,
+        HttpClient client,
+        FollowManager followManager) : ControllerBase
     {
         private static readonly string[] ProxyTypes = ["http", "socks5"];
 
@@ -167,7 +171,7 @@ namespace KCS.Server.Controllers
             {
                 await manager.StopSpam(id);
                 await manager.DisconnectAllBots(id);
-                await FollowBot.RemoveAllFromQueue(x => x!.Id == id);
+                await followManager.RemoveAllFromQueue(x => x.Id == id);
             }
 
             await db.SaveChangesAsync();

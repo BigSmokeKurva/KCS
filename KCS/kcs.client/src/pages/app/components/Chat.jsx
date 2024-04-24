@@ -31,7 +31,6 @@ function Chat({ botListRef, streamerInfo }) {
                 return;
             }
             json.data = JSON.parse(json.data);
-            console.log(json);
 
             const id = json.data.id;
             const time = new Date(json.data.created_at);

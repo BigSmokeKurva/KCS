@@ -1,4 +1,5 @@
-﻿using KCS.Server.Controllers.Models;
+﻿using System.Collections.Concurrent;
+using KCS.Server.Controllers.Models;
 using Microsoft.EntityFrameworkCore;
 using KCS.Server.Database;
 using KCS.Server.Database.Models;
@@ -7,7 +8,7 @@ namespace KCS.Server.BotsManager
 {
     public class Manager(DatabaseContext db)
     {
-        public static readonly Dictionary<int, User> Users = [];
+        public static readonly ConcurrentDictionary<int, User> Users = [];
 
         public bool IsConnected(int id, string botUsername)
         {
@@ -19,7 +20,7 @@ namespace KCS.Server.BotsManager
             var configuration = await db.Configurations.FindAsync(id);
             if (!Users.TryGetValue(id, out var user))
             {
-                Users.Add(id, new User(id, configuration!.StreamerInfo));
+                Users.TryAdd(id, new User(id, configuration!.StreamerInfo));
                 user = Users[id];
             }
 
@@ -32,7 +33,7 @@ namespace KCS.Server.BotsManager
             {
                 var streamerInfo = await db.Configurations.Where(x => x.Id == id)
                     .Select(x => x.StreamerInfo).FirstAsync();
-                Users.Add(id, new User(id, streamerInfo));
+                Users.TryAdd(id, new User(id, streamerInfo));
                 return;
             }
 
@@ -44,7 +45,7 @@ namespace KCS.Server.BotsManager
             var configuration = await db.Configurations.FindAsync(id);
             if (!Users.TryGetValue(id, out var user))
             {
-                Users.Add(id, new User(id, configuration!.StreamerInfo));
+                Users.TryAdd(id, new User(id, configuration!.StreamerInfo));
                 user = Users[id];
             }
 
@@ -57,7 +58,7 @@ namespace KCS.Server.BotsManager
             {
                 var streamerInfo = await db.Configurations.Where(x => x.Id == id)
                     .Select(x => x.StreamerInfo).FirstAsync();
-                Users.Add(id, new User(id, streamerInfo));
+                Users.TryAdd(id, new User(id, streamerInfo));
                 return;
             }
 
@@ -70,7 +71,7 @@ namespace KCS.Server.BotsManager
             {
                 var streamerInfo = await db.Configurations.Where(x => x.Id == id)
                     .Select(x => x.StreamerInfo).FirstAsync();
-                Users.Add(id, new User(id, streamerInfo));
+                Users.TryAdd(id, new User(id, streamerInfo));
                 throw new Exception("Ошибка отправки сообщения");
             }
 
@@ -83,7 +84,7 @@ namespace KCS.Server.BotsManager
             {
                 var streamerInfo = await db.Configurations.Where(x => x.Id == id)
                     .Select(x => x.StreamerInfo).FirstAsync();
-                Users.Add(id, new User(id, streamerInfo));
+                Users.TryAdd(id, new User(id, streamerInfo));
                 throw new Exception("Ошибка отправки сообщения");
             }
 
@@ -95,7 +96,7 @@ namespace KCS.Server.BotsManager
             if (Users.TryGetValue(id, out var user)) return user.SpamStarted();
             var streamerInfo = await db.Configurations.Where(x => x.Id == id).Select(x => x.StreamerInfo)
                 .FirstAsync();
-            Users.Add(id, new User(id, streamerInfo));
+            Users.TryAdd(id, new User(id, streamerInfo));
             return false;
         }
 
@@ -105,7 +106,7 @@ namespace KCS.Server.BotsManager
             {
                 var streamerInfo = await db.Configurations.Where(x => x.Id == id)
                     .Select(x => x.StreamerInfo).FirstAsync();
-                Users.Add(id, new User(id, streamerInfo));
+                Users.TryAdd(id, new User(id, streamerInfo));
                 return;
             }
 
@@ -118,7 +119,7 @@ namespace KCS.Server.BotsManager
             {
                 var streamerInfo = await db.Configurations.Where(x => x.Id == id)
                     .Select(x => x.StreamerInfo).FirstAsync();
-                Users.Add(id, new User(id, streamerInfo));
+                Users.TryAdd(id, new User(id, streamerInfo));
                 user = Users[id];
             }
 
@@ -129,7 +130,7 @@ namespace KCS.Server.BotsManager
         {
             if (!Users.TryGetValue(id, out var user))
             {
-                Users.Add(id, new User(id, streamerInfo));
+                Users.TryAdd(id, new User(id, streamerInfo));
                 return;
             }
 
@@ -156,7 +157,7 @@ namespace KCS.Server.BotsManager
                 await db.AddLog(user.Id, "Отключил всех ботов. (Бездействие)", LogType.Action);
             }
 
-            Users.Remove(id);
+            Users.Remove(id, out _);
         }
     }
 }

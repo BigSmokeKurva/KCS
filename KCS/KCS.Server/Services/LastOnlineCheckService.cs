@@ -49,7 +49,7 @@ public class LastOnlineCheckService(IServiceProvider serviceProvider) : IHostedS
                 await context.AddLog(id, "Отключил всех ботов. (Бездействие)", LogType.Action);
             }
 
-            Manager.Users.Remove(id);
+            Manager.Users.Remove(id, out _);
         }
 
         await context.SaveChangesAsync();

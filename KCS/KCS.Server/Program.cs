@@ -18,9 +18,6 @@ public class Program
 
     public static async Task Main(string[] args)
     {
-        // Настройка Playwright
-        ConfigurePlaywright();
-
         var builder = WebApplication.CreateBuilder(args);
 
         // Настройка источника данных PostgreSQL
@@ -45,23 +42,13 @@ public class Program
         ConfigureApp(app);
 
         // Передача конфига статичным классам
-        app.Configuration.GetSection("App").GetValue<int>("ConnectThreads");
-        app.Configuration.GetSection("App").GetValue<int>("DisconnectThreads");
         TokenCheck.Threads = app.Configuration.GetSection("TokenCheck").GetValue<int>("Threads");
-        FollowBot.Threads = app.Configuration.GetSection("FollowBot").GetValue<int>("Threads");
-
-        // FollowBot
-        FollowBot.StartPolling();
+        Kasada.ApiKey = app.Configuration.GetSection("Salamoonder").GetValue<string>("ApiKey")!;
 
         // Запуск приложения
         await app.RunAsync();
     }
 
-    private static void ConfigurePlaywright()
-    {
-        Microsoft.Playwright.Program.Main(["install", "firefox"]);
-        Console.Clear();
-    }
 
     private static void ConfigurePostgresDataSource(IConfiguration configuration)
     {
@@ -106,6 +93,8 @@ public class Program
         {
             UseCookies = false
         }));
+        builder.Services.AddSingleton(
+            new FollowManager(builder.Configuration.GetSection("FollowBot").GetValue<int>("Threads")));
         builder.Services.AddScoped<Manager>();
 
         if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))

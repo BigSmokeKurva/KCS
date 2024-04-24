@@ -1,4 +1,5 @@
-﻿using KCS.Server.Controllers.Models;
+﻿using System.Collections.Concurrent;
+using KCS.Server.Controllers.Models;
 using KCS.Server.Database.Models;
 
 namespace KCS.Server.BotsManager;
@@ -9,6 +10,7 @@ public class User(int id, StreamerInfo streamerInfo)
     private readonly List<Task> _spamTasks = [];
     public readonly Dictionary<string, Bot> Bots = [];
     private CancellationTokenSource? _spamCancellationToken;
+    public readonly ConcurrentQueue<Bot> FollowBotQueue = [];
     public int Id { get; set; } = id;
 
     internal void ConnectBot(string botName, Configuration configuration)
@@ -18,7 +20,7 @@ public class User(int id, StreamerInfo streamerInfo)
         var token = configuration.Tokens.FirstOrDefault(x => x?.Username == botName, null);
         _ = token ?? throw new Exception("Токен не найден");
 
-        var bot = new Bot(token, (int)streamerInfo.ChatroomId!);
+        var bot = new Bot(token, streamerInfo);
         Bots.Add(botName, bot);
     }
 
@@ -43,7 +45,7 @@ public class User(int id, StreamerInfo streamerInfo)
             return;
         foreach (var bot in (bots ?? throw new InvalidOperationException()).Where(bot =>
                      !Bots.ContainsKey(bot.Username)))
-            Bots.Add(bot.Username, new Bot(bot, (int)streamerInfo.ChatroomId!));
+            Bots.Add(bot.Username, new Bot(bot, streamerInfo));
     }
 
     internal void DisconnectAllBots()
@@ -169,4 +171,10 @@ public class User(int id, StreamerInfo streamerInfo)
         Bots.Clear();
         streamerInfo = newStreamerInfo;
     }
+}
+
+public enum FollowMode
+{
+    Follow,
+    UnFollow
 }

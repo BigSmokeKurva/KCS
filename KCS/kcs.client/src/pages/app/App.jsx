@@ -44,6 +44,7 @@ function App({ headerRef, isMobile }) {
   const editStreamerUsername = useCallback(async () => {
     const streamerUsername = editStreamerUsernameRef.current.getInputValue();
     if (streamerUsername === user.streamerInfo.username) return;
+    showNotification("Проверка ника стримера...", "warning");
     var auth_token = Cookies.get('auth_token');
     var response = await fetch('/api/app/updateStreamerUsername?username=' + streamerUsername, {
       method: 'PUT',

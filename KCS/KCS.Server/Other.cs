@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using KCS.Server.Database.Models;
@@ -116,7 +115,6 @@ public static class TokenCheck
                     }
 
                     var response = await client.SendAsync(request, e);
-                    Console.WriteLine(await response.Content.ReadAsStringAsync());
                     var json = await response.Content.ReadFromJsonAsync<MeJson>(cancellationToken: e);
                     token.Tags.Clear();
 
@@ -125,7 +123,6 @@ public static class TokenCheck
                         result[token].Add(Tag.Ban);
                     }
 
-                    Console.WriteLine(json.IsModerator);
                     if (json.IsModerator)
                     {
                         result[token].Add(Tag.Moderator);
@@ -166,5 +163,106 @@ public static class TokenCheck
         [JsonPropertyName("is_moderator")] public bool IsModerator { get; set; }
 
         [JsonPropertyName("banned")] public object? Banned { get; set; }
+    }
+}
+
+public static class Kasada
+{
+    public static string ApiKey = null!;
+    private static readonly SemaphoreSlim Semaphore = new(1, 1);
+    private static readonly HttpClient Client = new();
+
+    private static async Task<SalamoonderResultTaskResponse> Solve()
+    {
+        var data = new
+        {
+            api_key = ApiKey,
+            task = new
+            {
+                type = "KasadaCaptchaSolver",
+                pjs =
+                    "https://kick.com/149e9513-01fa-4fb0-aad4-566afd725d1b/2d206a39-8ed7-437e-a3be-862e0f06eea3/p.js",
+                cdOnly = "false"
+            }
+        };
+        var response = await Client.PostAsJsonAsync("https://salamoonder.com/api/createTask", data);
+        var task = await response.Content.ReadFromJsonAsync<SalamoonderCreateTaskResponse>();
+        if (task.ErrorCode != 0) throw new Exception(task.ErrorDescription);
+        for (var i = 0; i < 30; i++)
+        {
+            await Task.Delay(1000);
+            response = await Client.PostAsJsonAsync("https://salamoonder.com/api/getTaskResult", new
+            {
+                taskId = task.TaskId
+            });
+            var result = await response.Content.ReadFromJsonAsync<SalamoonderResultTaskResponse>();
+
+            if (result.Status != "ready") continue;
+            if (result.Solution.Error is null) return result;
+            if (result.Solution.Error is not null &&
+                result.Solution.Error == "No solution created. (Refunded task automatically) XXX")
+            {
+                return await Solve(Client);
+            }
+
+            throw new Exception(result.Solution.Error);
+        }
+
+
+        throw new Exception("Timeout");
+    }
+
+    public static async Task<SalamoonderResultTaskResponse> Solve(object? nothing = null)
+    {
+        Exception? exception = null;
+        SalamoonderResultTaskResponse result = default;
+        await Semaphore.WaitAsync();
+        try
+        {
+            result = await Solve();
+            await Task.Delay(1000);
+        }
+        catch (Exception ex)
+        {
+            exception = ex;
+        }
+
+        Semaphore.Release();
+        if (exception is not null) throw exception;
+        return result;
+    }
+
+    private struct SalamoonderCreateTaskResponse
+    {
+        [JsonPropertyName("taskId")] public string TaskId { get; set; }
+        [JsonPropertyName("error_code")] public int ErrorCode { get; set; }
+
+        [JsonPropertyName("error_description")]
+        public string ErrorDescription { get; set; }
+    }
+
+    public struct SalamoonderResultTaskResponse
+    {
+        [JsonPropertyName("errorId")] public int ErrorId { get; set; }
+
+        [JsonPropertyName("solution")] public Solution Solution { get; set; }
+
+        [JsonPropertyName("status")] public string Status { get; set; }
+    }
+
+    public struct Solution
+    {
+        [JsonPropertyName("user-agent")] public string? UserAgent { get; set; }
+
+        [JsonPropertyName("x-kpsdk-cd")] public string? XKpsdkCd { get; set; }
+
+        [JsonPropertyName("x-kpsdk-cr")] public string? XKpsdkCr { get; set; }
+
+        [JsonPropertyName("x-kpsdk-ct")] public string? XKpsdkCt { get; set; }
+
+        [JsonPropertyName("x-kpsdk-r")] public string? XKpsdkR { get; set; }
+
+        [JsonPropertyName("x-kpsdk-st")] public string? XKpsdkSt { get; set; }
+        [JsonPropertyName("error")] public string? Error { get; set; }
     }
 }

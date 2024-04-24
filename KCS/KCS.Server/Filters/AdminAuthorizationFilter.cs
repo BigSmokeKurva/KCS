@@ -7,8 +7,6 @@ namespace KCS.Server.Filters;
 
 public class AdminAuthorizationFilter(DatabaseContext db) : IAsyncAuthorizationFilter
 {
-    private readonly DatabaseContext _db = db;
-
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         string authToken;
@@ -24,7 +22,7 @@ public class AdminAuthorizationFilter(DatabaseContext db) : IAsyncAuthorizationF
         }
 
         if (!Guid.TryParse(authToken, out var authTokenUid) ||
-            !await _db.Sessions.AnyAsync(x => x.AuthToken == authTokenUid))
+            !await db.Sessions.AnyAsync(x => x.AuthToken == authTokenUid))
         {
             context.Result = new RedirectResult("/signin");
             foreach (var cookie in context.HttpContext.Request.Cookies.Keys)
@@ -32,7 +30,7 @@ public class AdminAuthorizationFilter(DatabaseContext db) : IAsyncAuthorizationF
             return;
         }
 
-        var user = await _db.Users.FirstAsync(x => _db.Sessions.Any(y => y.Id == x.Id && y.AuthToken == authTokenUid));
+        var user = await db.Users.FirstAsync(x => db.Sessions.Any(y => y.Id == x.Id && y.AuthToken == authTokenUid));
         if (user.Paused)
         {
             context.Result = new RedirectResult("/pause");
@@ -41,6 +39,6 @@ public class AdminAuthorizationFilter(DatabaseContext db) : IAsyncAuthorizationF
 
         if (!user.Admin) context.Result = new RedirectResult("/app");
         user.LastOnline = TimeHelper.GetUnspecifiedUtc();
-        await _db.SaveChangesAsync();
+        await db.SaveChangesAsync();
     }
 }

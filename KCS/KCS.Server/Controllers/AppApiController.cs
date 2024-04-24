@@ -6,13 +6,16 @@ using KCS.Server.Filters;
 using KCS.Server.Follow;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Action = KCS.Server.Follow.Action;
+using ThreadState = KCS.Server.Follow.ThreadState;
 
 namespace KCS.Server.Controllers;
 
 [Route("api/app")]
 [ApiController]
 [TypeFilter(typeof(UserAuthorizationFilter))]
-public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager manager) : ControllerBase
+public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager manager, FollowManager followManager)
+    : ControllerBase
 {
     [HttpGet]
     [Route("getUsername")]
@@ -62,7 +65,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
     [Route("updateStreamerUsername")]
     public async Task<ActionResult> UpdateStreamerUsername(string username)
     {
-        StreamerInfoResponse? json;
+        StreamerInfoResponse? json = null;
         if (!UserValidators.ValidateStreamerUsername(username))
         {
             var data = new
@@ -78,24 +81,35 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         var request = new HttpRequestMessage(HttpMethod.Get, $"https://kick.com/api/v1/channels/{username}");
         request.Headers.Add("User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
-        try
+        for (var i = 0; i < 8; i++)
         {
-            var response = await httpClient.SendAsync(request);
-            json = await response.Content.ReadFromJsonAsync<StreamerInfoResponse>();
-            if (json.Value.Chatroom is null)
+            if (i == 7)
+            {
                 return Ok(new
                 {
                     status = "error",
                     message = "Такого стримера не существует"
                 });
-        }
-        catch
-        {
-            return Ok(new
+            }
+
+            try
             {
-                status = "error",
-                message = "Такого стримера не существует"
-            });
+                var response = await httpClient.SendAsync(request);
+                json = await response.Content.ReadFromJsonAsync<StreamerInfoResponse>();
+                if (json.Value.Chatroom is null)
+                    return Ok(new
+                    {
+                        status = "error",
+                        message = "Такого стримера не существует"
+                    });
+                break;
+            }
+            catch
+            {
+                // ignored
+            }
+
+            await Task.Delay(2000);
         }
 
 
@@ -103,16 +117,15 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
 
         await manager.ChangeStreamerUsername(user.Id, new StreamerInfo
         {
-            ChatroomId = json.Value.Chatroom?.Id,
+            ChatroomId = json!.Value.Chatroom?.Id,
             Username = username
         });
-        await FollowBot.RemoveAllFromQueue(x => x.Id == user.Id);
+        await followManager.RemoveAllFromQueue(x => x.Id == user.Id);
         user.Configuration.StreamerInfo.Username = username;
         user.Configuration.StreamerInfo.ChatroomId = json.Value.Chatroom?.Id;
         db.Entry(user.Configuration).Property(x => x.StreamerInfo).IsModified = true;
         await db.AddLog(user, $"Обновил ник стримера на {username}.", LogType.Action);
         await db.SaveChangesAsync();
-        FollowBot.Queue.RemoveAll(x => x.Id == user.Id);
         return Ok(new
         {
             status = "ok"
@@ -127,9 +140,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         var user = await db.GetUser(authToken);
         var followedBots = await db.Bots.Where(x => x.Followed.Contains(user.Configuration.StreamerInfo.Username))
             .Select(x => x.Username).ToListAsync();
-        var queueBots =
-            (await FollowBot.IsInQueue(user.Configuration.Tokens.Select(x => x.Token1), user.Id)).Select(x =>
-                user.Configuration.Tokens.First(y => y.Token1 == x).Username);
+        var queueBots = await followManager.GetUserQueue(user.Id);
         var bots = user.Configuration.Tokens.Select(x => x.Username).Select(x => new
         {
             username = x,
@@ -326,9 +337,8 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
             await db.AddLog(id, $"Отправил сообщение {model.Message}.", LogType.Chat);
             await db.SaveChangesAsync();
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine(ex);
             return Ok(new
             {
                 status = "error",
@@ -725,28 +735,28 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         });
     }
 
-    [HttpGet]
-    [Route("getFollowBots")]
-    public async Task<ActionResult> GetFollowBots()
-    {
-        var authToken = Guid.Parse(Request.Headers.Authorization!);
-        var configuration = await db.GetConfiguration(authToken);
-        var followedUsernames = configuration.Tokens.Where(x =>
-                db.Bots.Any(y =>
-                    y.Username == x.Username && y.Followed.Contains(configuration.StreamerInfo.Username)))
-            .Select(x => x.Username);
-        var inQueueTokens = await FollowBot.IsInQueue(configuration.Tokens.Select(x => x.Token1), configuration.Id);
-        return Ok(configuration.Tokens.ToDictionary(x => x.Username, x =>
-        {
-            if (inQueueTokens.Contains(x.Token1)) return "waiting";
+    //[HttpGet]
+    //[Route("getFollowBots")]
+    //public async Task<ActionResult> GetFollowBots()
+    //{
+    //    var authToken = Guid.Parse(Request.Headers.Authorization!);
+    //    var configuration = await db.GetConfiguration(authToken);
+    //    var followedUsernames = configuration.Tokens.Where(x =>
+    //            db.Bots.Any(y =>
+    //                y.Username == x.Username && y.Followed.Contains(configuration.StreamerInfo.Username)))
+    //        .Select(x => x.Username);
+    //    var inQueueTokens = manager.GetFollowQueue(configuration.Id).Select(x => x.Username);
+    //    return Ok(configuration.Tokens.ToDictionary(x => x.Username, x =>
+    //    {
+    //        if (inQueueTokens.Contains(x.Username)) return "waiting";
 
-            return followedUsernames.Contains(x.Username) ? "followed" : "not-followed";
-        }));
-    }
+    //        return followedUsernames.Contains(x.Username) ? "followed" : "not-followed";
+    //    }));
+    //}
 
     [HttpGet]
     [Route("followBot")]
-    public async Task<ActionResult> FollowBot_(string botName)
+    public async Task<ActionResult> FollowBot(string botName)
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var user = await db.GetUser(authToken);
@@ -765,28 +775,33 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
                 message = "Бот не найден."
             });
 
-        if (await FollowBot.IsInQueue(token.Token1, user.Id))
+        if (await followManager.IsInQueue(botName, user.Id))
             return Ok(new
             {
                 status = "error",
                 message = "Бот уже в очереди."
             });
 
-        var item = new Item
+        if (!manager.IsConnected(user.Id, botName))
+        {
+            return Ok(new
+            {
+                status = "error",
+                message = "Бот не подключен."
+            });
+        }
+
+        await followManager.AddToQueue(new Item
         {
             Id = user.Id,
-            Username = token.Username,
-            Token1 = token.Token1,
-            Token2 = token.Token2,
-            Token3 = token.Token3,
-            Token4 = token.Token4,
-            StreamerUsername = user.Configuration.StreamerInfo.Username,
-            Action = Actions.Follow,
+            Action = Action.Follow,
+            Bot = Manager.Users[user.Id].Bots[botName],
             Date = TimeHelper.GetUnspecifiedUtc(),
-            Proxy = token.Proxy
-        };
-        await FollowBot.AddToQueue(item);
+            State = ThreadState.Waiting
+        });
         await db.AddLog(user, $"Добавил бота {botName} в очередь на follow.", LogType.Action);
+
+
         await db.SaveChangesAsync();
         return Ok(new
         {
@@ -815,32 +830,36 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
                 message = "Бот не найден."
             });
 
-        if (await FollowBot.IsInQueue(token.Token1, user.Id))
+        if (await followManager.IsInQueue(botName, user.Id))
             return Ok(new
             {
                 status = "error",
                 message = "Бот уже в очереди."
             });
 
-        var item = new Item
+        if (!manager.IsConnected(user.Id, botName))
+        {
+            return Ok(new
+            {
+                status = "error",
+                message = "Бот не подключен."
+            });
+        }
+
+        await followManager.AddToQueue(new Item
         {
             Id = user.Id,
-            Username = token.Username,
-            Token1 = token.Token1,
-            Token2 = token.Token2,
-            Token3 = token.Token3,
-            Token4 = token.Token4,
-            StreamerUsername = user.Configuration.StreamerInfo.Username,
-            Action = Actions.Unfollow,
+            Action = Action.Unfollow,
+            Bot = Manager.Users[user.Id].Bots[botName],
             Date = TimeHelper.GetUnspecifiedUtc(),
-            Proxy = token.Proxy
-        };
-        await FollowBot.AddToQueue(item);
+            State = ThreadState.Waiting
+        });
         await db.AddLog(user, $"Добавил бота {botName} в очередь на unfollow.", LogType.Action);
+
         await db.SaveChangesAsync();
         return Ok(new
         {
-            status = "ok"
+            status = "ok",
         });
     }
 
@@ -858,7 +877,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
                 message = "Бот не найден."
             });
 
-        await FollowBot.RemoveFromQueue(token.Username, user.Id);
+        await followManager.RemoveFromQueue(botName, user.Id);
         await db.AddLog(user, $"Убрал из очереди бота {botName}.", LogType.Action);
         await db.SaveChangesAsync();
 
@@ -879,44 +898,39 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var user = await db.GetUser(authToken);
         if (user.Configuration.StreamerInfo.Username.Length == 0)
+        {
             return Ok(new
             {
                 status = "error",
                 message = "Не указан ник стримера."
             });
-
-        var tokens = user.Configuration.Tokens;
-        var bots = user.Configuration.Tokens.Select(x => x.Username);
-        var inQueueTokens =
-            (await FollowBot.IsInQueue(tokens.Select(x => x.Token1), user.Id)).Select(x =>
-                tokens.First(y => y.Token1 == x));
-        var followedTokens =
-            (await db.Bots
-                .Where(x => x.Followed.Contains(user.Configuration.StreamerInfo.Username) &&
-                            bots.Contains(x.Username)).Select(x => x.Username).ToListAsync())
-            .Select(x => user.Configuration.Tokens.First(y => x == y.Username));
-        var items = new List<Item?>();
-        var num = 1;
-        foreach (var token in tokens.Where(token => !inQueueTokens.Contains(token) && !followedTokens.Contains(token)))
-        {
-            items.Add(new Item
-            {
-                Id = user.Id,
-                Username = token.Username,
-                Token1 = token.Token1,
-                Token2 = token.Token2,
-                Token3 = token.Token3,
-                Token4 = token.Token4,
-                StreamerUsername = user.Configuration.StreamerInfo.Username,
-                Action = Actions.Follow,
-                Date = TimeHelper.GetUnspecifiedUtc().AddSeconds(model.Delay * num),
-                Proxy = token.Proxy
-            });
-            num++;
         }
 
-        await FollowBot.AddToQueue(items);
-        await db.AddLog(user, "Добавил всех ботов в очередь на follow.", LogType.Action);
+        var tokens = user.Configuration.Tokens;
+        var inQueueTokens = await followManager.IsInQueue(tokens.Select(x => x.Username), user.Id);
+        var followedTokens = (await db.Bots
+            .Where(x => tokens.Select(item => item.Username).Contains(x.Username) &&
+                        x.Followed.Contains(user.Configuration.StreamerInfo.Username)).Select(x => x.Username)
+            .ToListAsync());
+        var num = 0;
+
+        var items = tokens.Where(token =>
+                !inQueueTokens.Contains(token.Username) && !followedTokens.Contains(token.Username))
+            .Select(token =>
+            {
+                num++;
+                return new Item
+                {
+                    Id = user.Id,
+                    Action = Action.Follow,
+                    Bot = Manager.Users[user.Id].Bots[token.Username],
+                    Date = TimeHelper.GetUnspecifiedUtc().AddSeconds(model.Delay * num),
+                    State = ThreadState.Waiting
+                };
+            })
+            .ToList();
+        await followManager.AddToQueue(items);
+        await db.AddLog(user, $"Добавил всех ботов в очередь на follow.", LogType.Action);
         await db.SaveChangesAsync();
         return Ok(new
         {
@@ -931,44 +945,39 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var user = await db.GetUser(authToken);
         if (user.Configuration.StreamerInfo.Username.Length == 0)
+        {
             return Ok(new
             {
                 status = "error",
                 message = "Не указан ник стримера."
             });
-
-        var tokens = user.Configuration.Tokens;
-        var bots = user.Configuration.Tokens.Select(x => x.Username);
-        var inQueueTokens =
-            (await FollowBot.IsInQueue(tokens.Select(x => x.Token1), user.Id)).Select(x =>
-                tokens.First(y => y.Token1 == x));
-        var followedTokens =
-            (await db.Bots
-                .Where(x => x.Followed.Contains(user.Configuration.StreamerInfo.Username) &&
-                            bots.Contains(x.Username)).Select(x => x.Username).ToListAsync())
-            .Select(x => user.Configuration.Tokens.First(y => x == y.Username));
-        var items = new List<Item?>();
-        var num = 1;
-        foreach (var token in tokens.Where(token => !inQueueTokens.Contains(token) && followedTokens.Contains(token)))
-        {
-            items.Add(new Item
-            {
-                Id = user.Id,
-                Username = token.Username,
-                Token1 = token.Token1,
-                Token2 = token.Token2,
-                Token3 = token.Token3,
-                Token4 = token.Token4,
-                StreamerUsername = user.Configuration.StreamerInfo.Username,
-                Action = Actions.Unfollow,
-                Date = TimeHelper.GetUnspecifiedUtc().AddSeconds(model.Delay * num),
-                Proxy = token.Proxy
-            });
-            num++;
         }
 
-        await FollowBot.AddToQueue(items);
-        await db.AddLog(user, "Добавил всех ботов в очередь на unfollow.", LogType.Action);
+        var tokens = user.Configuration.Tokens;
+        var inQueueTokens = await followManager.IsInQueue(tokens.Select(x => x.Username), user.Id);
+        var followedTokens = (await db.Bots
+            .Where(x => tokens.Select(item => item.Username).Contains(x.Username) &&
+                        !x.Followed.Contains(user.Configuration.StreamerInfo.Username)).Select(x => x.Username)
+            .ToListAsync());
+        var num = 0;
+
+        var items = tokens.Where(token =>
+                !inQueueTokens.Contains(token.Username) && !followedTokens.Contains(token.Username))
+            .Select(token =>
+            {
+                num++;
+                return new Item
+                {
+                    Id = user.Id,
+                    Action = Action.Unfollow,
+                    Bot = Manager.Users[user.Id].Bots[token.Username],
+                    Date = TimeHelper.GetUnspecifiedUtc().AddSeconds(model.Delay * num),
+                    State = ThreadState.Waiting
+                };
+            })
+            .ToList();
+        await followManager.AddToQueue(items);
+        await db.AddLog(user, $"Добавил всех ботов в очередь на unfollow.", LogType.Action);
         await db.SaveChangesAsync();
         return Ok(new
         {
@@ -982,7 +991,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var user = await db.GetUser(authToken);
-        await FollowBot.RemoveAllFromQueue(x => x.Id == user.Id);
+        await followManager.RemoveAllFromQueue(x => x.Id == user.Id);
         await db.AddLog(user, "Убрал всех ботов из очереди followbot.", LogType.Action);
         await db.SaveChangesAsync();
         return Ok(new
