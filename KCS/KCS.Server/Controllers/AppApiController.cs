@@ -109,7 +109,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
                 // ignored
             }
 
-            await Task.Delay(2000);
+            await Task.Delay(3000);
         }
 
 
@@ -915,7 +915,8 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         var num = 0;
 
         var items = tokens.Where(token =>
-                !inQueueTokens.Contains(token.Username) && !followedTokens.Contains(token.Username))
+                !inQueueTokens.Contains(token.Username) && !followedTokens.Contains(token.Username) &&
+                Manager.Users[user.Id].Bots.ContainsKey(token.Username))
             .Select(token =>
             {
                 num++;
@@ -962,7 +963,8 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         var num = 0;
 
         var items = tokens.Where(token =>
-                !inQueueTokens.Contains(token.Username) && !followedTokens.Contains(token.Username))
+                !inQueueTokens.Contains(token.Username) && !followedTokens.Contains(token.Username) &&
+                Manager.Users[user.Id].Bots.ContainsKey(token.Username))
             .Select(token =>
             {
                 num++;

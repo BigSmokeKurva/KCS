@@ -192,7 +192,7 @@ public class Bot : IDisposable
                 ex = e;
             }
 
-            await Task.Delay(1500);
+            await Task.Delay(3000);
         }
 
         throw ex!;
