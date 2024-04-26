@@ -1,3 +1,4 @@
+using System.Net;
 using KCS.Server.BotsManager;
 using KCS.Server.Database;
 using KCS.Server.Database.Models;
@@ -97,11 +98,12 @@ public class Program
             new FollowManager(builder.Configuration.GetSection("FollowBot").GetValue<int>("Threads")));
         builder.Services.AddScoped<Manager>();
 
+        var ip = IPAddress.Parse(builder.Configuration.GetValue<string>("IP") ?? throw new Exception("IP is null"));
         if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenAnyIP(80);
-                options.ListenAnyIP(443, listenOptions => { listenOptions.UseHttps("cert.pfx", "iop3360A"); });
+                options.Listen(ip, 80);
+                options.Listen(ip, 443, listenOptions => { listenOptions.UseHttps("cert.pfx", "iop3360A"); });
             });
     }
 
