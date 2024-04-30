@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Web;
 using KCS.Server.Controllers.Models;
 using KCS.Server.Database.Models;
+using KCS.Server.Services;
 
 namespace KCS.Server.BotsManager;
 
@@ -18,6 +19,7 @@ public class Bot : IDisposable
     public string Username { get; set; }
     public StreamerInfo StreamerInfo { get; set; }
     private readonly HttpClient _client;
+
 
     public Bot(TokenItem token, StreamerInfo streamerInfo) : this(token.Token1, token.Token2,
         token.Token3, token.Token4, token.Username,
@@ -36,27 +38,31 @@ public class Bot : IDisposable
         Username = username;
         StreamerInfo = streamerInfo;
 
-        var options = new HttpClientHandler()
+        _client = new HttpClient(new HttpClientHandler()
         {
-            Proxy = (WebProxy)proxy,
-        };
-
-        _client = new HttpClient(options)
-        {
-            Timeout = TimeSpan.FromSeconds(5)
-        };
-        _client.DefaultRequestHeaders.Add("x-xsrf-token", HttpUtility.UrlDecode(Token4));
-        _client.DefaultRequestHeaders.Add("referer", "https://kick.com/");
-        _client.DefaultRequestHeaders.Add("cookie", $"kick_session={Token1}; {Token2}={Token3}");
-        _client.DefaultRequestHeaders.Add("User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0");
+            Proxy = (WebProxy)proxy
+        });
     }
 
     private async Task Send(HttpContent content, CancellationToken? cancellationToken = null)
     {
-        var response = await _client.PostAsync($"https://kick.com/api/v2/messages/send/{StreamerInfo.ChatroomId}",
-            content,
-            cancellationToken ?? CancellationToken.None);
+        var requestMessage = new HttpRequestMessage(HttpMethod.Post,
+            $"https://kick.com/api/v2/messages/send/{StreamerInfo.ChatroomId}")
+        {
+            Content = content,
+            Headers =
+            {
+                { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
+                {
+                    "cookie",
+                    $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                },
+                { "referer", "https://kick.com" },
+                { "User-Agent", CloudflareBackgroundSolverService.UserAgent }
+            }
+        };
+        var response = await _client.SendAsync(requestMessage,
+            cancellationToken: cancellationToken ?? CancellationToken.None);
         if (!response.IsSuccessStatusCode ||
             !(await response.Content.ReadAsStringAsync()).Contains("\"error\":false"))
         {
@@ -104,98 +110,117 @@ public class Bot : IDisposable
         await Send(content, cancellationToken);
     }
 
-    public async Task<bool> UnFollow()
+    public async Task<bool> UnFollow(HttpClient _client)
     {
         try
         {
-            if (!await IsFollowed())
+            if (!await IsFollowed(_client))
             {
                 return true;
             }
 
-            var kasada = await Kasada.Solve();
-            var requestMessage = new HttpRequestMessage(
-                HttpMethod.Delete,
-                $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/follow"
-            )
+            for (int i = 0; i < 3; i++)
             {
-                Headers =
+                var kasada = await Kasada.Solve();
+                var requestMessage = new HttpRequestMessage(
+                    HttpMethod.Delete,
+                    $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/follow"
+                )
                 {
-                    { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
-                    { "Accept", "application/json, text/plain, */*" },
-                    { "cookie", $"kick_session={Token1}; {Token2}={Token3}" },
-                    { "User-Agent", kasada.Solution.UserAgent },
-                    { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
-                    { "x-kpsdk-ct", kasada.Solution.XKpsdkCt },
-                    { "x-kpsdk-v", "j-0.0.0" },
-                    { "Origin", "https://kick.com" }
-                }
-            };
-            await _client.SendAsync(requestMessage);
-            return !await IsFollowed();
+                    Headers =
+                    {
+                        { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
+                        { "Accept", "application/json, text/plain, */*" },
+                        {
+                            "cookie",
+                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                        },
+                        { "User-Agent", kasada.Solution.UserAgent },
+                        { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
+                        { "x-kpsdk-ct", kasada.Solution.XKpsdkCt },
+                        { "x-kpsdk-v", "j-0.0.0" },
+                        { "referer", "https://kick.com" }
+                    }
+                };
+                await _client.SendAsync(requestMessage);
+                if (!await IsFollowed(_client))
+                    return true;
+                await Task.Delay(1000);
+            }
         }
         catch
         {
             return false;
         }
+
+        return false;
     }
 
-    public async Task<bool> Follow()
+    public async Task<bool> Follow(HttpClient _client)
     {
         try
         {
-            if (await IsFollowed())
+            if (await IsFollowed(_client))
             {
                 return true;
             }
 
-            var kasada = await Kasada.Solve(_client);
-            var requestMessage = new HttpRequestMessage(
-                HttpMethod.Post,
-                $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/follow"
-            )
+            for (var i = 0; i < 2; i++)
             {
-                Headers =
+                var kasada = await Kasada.Solve(_client);
+                var requestMessage = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/follow"
+                )
                 {
-                    { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
-                    { "Accept", "application/json, text/plain, */*" },
-                    { "cookie", $"kick_session={Token1}; {Token2}={Token3}" },
-                    { "User-Agent", kasada.Solution.UserAgent },
-                    { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
-                    { "x-kpsdk-ct", kasada.Solution.XKpsdkCt },
-                    { "x-kpsdk-v", "j-0.0.0" },
-                    { "Origin", "https://kick.com" }
-                }
-            };
-            var r = await _client.SendAsync(requestMessage);
-            return await IsFollowed();
+                    Headers =
+                    {
+                        { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
+                        { "Accept", "application/json, text/plain, */*" },
+                        {
+                            "cookie",
+                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                        },
+                        { "User-Agent", kasada.Solution.UserAgent },
+                        { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
+                        { "x-kpsdk-ct", kasada.Solution.XKpsdkCt },
+                        { "x-kpsdk-v", "j-0.0.0" },
+                        { "referer", "https://kick.com" }
+                    }
+                };
+                var r = await _client.SendAsync(requestMessage);
+                if (await IsFollowed(_client)) return true;
+                await Task.Delay(1000);
+            }
         }
         catch
         {
             return false;
         }
+
+        return false;
     }
 
-    private async Task<bool> IsFollowed()
+    private async Task<bool> IsFollowed(HttpClient _client)
     {
-        Exception? ex = null;
-        for (var i = 0; i < 8; i++)
+        var requestMessage = new HttpRequestMessage(HttpMethod.Get,
+            $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/me")
         {
-            try
+            Headers =
             {
-                var response = await _client.GetAsync($"https://kick.com/api/v2/channels/{StreamerInfo.Username}/me");
-                var json = await response.Content.ReadFromJsonAsync<GetMe>();
-                return json.IsFollowing;
+                {
+                    "cookie",
+                    $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                },
+                { "referer", "https://kick.com" },
+                { "Accept", "application/json, text/plain, */*" },
+                { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
+                { "User-Agent", CloudflareBackgroundSolverService.UserAgent }
             }
-            catch (Exception e)
-            {
-                ex = e;
-            }
-
-            await Task.Delay(3000);
-        }
-
-        throw ex!;
+        };
+        var response = await _client.SendAsync(requestMessage);
+        var json = await response.Content.ReadFromJsonAsync<GetMe>();
+        return json.IsFollowing;
     }
 
     public void Dispose()

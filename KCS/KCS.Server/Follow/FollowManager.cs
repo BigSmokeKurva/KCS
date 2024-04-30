@@ -8,11 +8,11 @@ namespace KCS.Server.Follow
         private readonly List<Task> _tasks = [];
         private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-        public FollowManager(int threads)
+        public FollowManager(int threads, HttpClient _client)
         {
             for (var i = 0; i < threads; i++)
             {
-                _tasks.Add(new FollowThread(_queue, _semaphore).Polling());
+                _tasks.Add(new FollowThread(_queue, _semaphore, _client).Polling());
             }
         }
 

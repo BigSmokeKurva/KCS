@@ -2,7 +2,7 @@
 
 namespace KCS.Server.Follow
 {
-    public class FollowThread(ICollection<Item> queue, SemaphoreSlim semaphore)
+    public class FollowThread(ICollection<Item> queue, SemaphoreSlim semaphore, HttpClient client)
     {
         private Item? _item;
 
@@ -45,7 +45,7 @@ namespace KCS.Server.Follow
                 switch (_item.Action)
                 {
                     case Action.Follow:
-                        response = await _item.Bot.Follow();
+                        response = await _item.Bot.Follow(client);
                         if (response)
                         {
                             _item.State = ThreadState.Followed;
@@ -56,7 +56,7 @@ namespace KCS.Server.Follow
                         queue.Remove(_item);
                         break;
                     case Action.Unfollow:
-                        response = await _item.Bot.UnFollow();
+                        response = await _item.Bot.UnFollow(client);
                         if (response)
                         {
                             _item.State = ThreadState.Unfollowed;

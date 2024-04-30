@@ -4,6 +4,7 @@ using KCS.Server.Database;
 using KCS.Server.Database.Models;
 using KCS.Server.Filters;
 using KCS.Server.Follow;
+using KCS.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Action = KCS.Server.Follow.Action;
@@ -79,37 +80,25 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         var authToken = Guid.Parse(Request.Headers.Authorization!);
 
         var request = new HttpRequestMessage(HttpMethod.Get, $"https://kick.com/api/v1/channels/{username}");
-        request.Headers.Add("User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
-        for (var i = 0; i < 8; i++)
+        request.Headers.Add("Cookie", $"cf_clearance={CloudflareBackgroundSolverService.CfClearance}");
+        try
         {
-            if (i == 7)
-            {
+            var response = await httpClient.SendAsync(request);
+            json = await response.Content.ReadFromJsonAsync<StreamerInfoResponse>();
+            if (json.Value.Chatroom is null)
                 return Ok(new
                 {
                     status = "error",
                     message = "Такого стримера не существует"
                 });
-            }
-
-            try
+        }
+        catch
+        {
+            return Ok(new
             {
-                var response = await httpClient.SendAsync(request);
-                json = await response.Content.ReadFromJsonAsync<StreamerInfoResponse>();
-                if (json.Value.Chatroom is null)
-                    return Ok(new
-                    {
-                        status = "error",
-                        message = "Такого стримера не существует"
-                    });
-                break;
-            }
-            catch
-            {
-                // ignored
-            }
-
-            await Task.Delay(3000);
+                status = "error",
+                message = "Такого стримера не существует"
+            });
         }
 
 

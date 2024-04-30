@@ -21,6 +21,9 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        // Настройка Playwright
+        ConfigurePlaywright();
+
         // Настройка источника данных PostgreSQL
         ConfigurePostgresDataSource(builder.Configuration);
 
@@ -45,6 +48,8 @@ public class Program
         // Передача конфига статичным классам
         TokenCheck.Threads = app.Configuration.GetSection("TokenCheck").GetValue<int>("Threads");
         Kasada.ApiKey = app.Configuration.GetSection("Salamoonder").GetValue<string>("ApiKey")!;
+        CloudflareBackgroundSolverService.ApiKey =
+            app.Configuration.GetSection("RuCaptcha").GetValue<string>("ApiKey")!;
 
         // Запуск приложения
         await app.RunAsync();
@@ -77,6 +82,10 @@ public class Program
     private static void ConfigureServices(WebApplicationBuilder builder)
     {
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        var client = new HttpClient(new HttpClientHandler
+        {
+            UseCookies = false
+        });
 
         builder.Services.AddDbContext<DatabaseContext>(optionsBuilder =>
         {
@@ -90,12 +99,10 @@ public class Program
         builder.Services.AddHostedService<SessionExpiresCheckService>();
         builder.Services.AddHostedService<LastOnlineCheckService>();
         builder.Services.AddHostedService<InviteCodeExpiresCheckService>();
-        builder.Services.AddSingleton(new HttpClient(new HttpClientHandler
-        {
-            UseCookies = false
-        }));
+        builder.Services.AddHostedService<CloudflareBackgroundSolverService>();
+        builder.Services.AddSingleton(client);
         builder.Services.AddSingleton(
-            new FollowManager(builder.Configuration.GetSection("FollowBot").GetValue<int>("Threads")));
+            new FollowManager(builder.Configuration.GetSection("FollowBot").GetValue<int>("Threads"), client));
         builder.Services.AddScoped<Manager>();
 
         var ip = IPAddress.Parse(builder.Configuration.GetValue<string>("IP") ?? throw new Exception("IP is null"));
@@ -105,6 +112,12 @@ public class Program
                 options.Listen(ip, 80);
                 options.Listen(ip, 443, listenOptions => { listenOptions.UseHttps("cert.pfx", "iop3360A"); });
             });
+    }
+
+    private static void ConfigurePlaywright()
+    {
+        Microsoft.Playwright.Program.Main(["install", "chromium"]);
+        Console.Clear();
     }
 
     private static async Task InitializeRootUserAsync(WebApplication app)

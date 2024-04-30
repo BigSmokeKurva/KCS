@@ -2,6 +2,7 @@
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using KCS.Server.Database.Models;
+using KCS.Server.Services;
 
 namespace KCS.Server;
 
@@ -51,7 +52,6 @@ public static class TokenCheck
 {
     private static readonly Dictionary<string, string> Headers = new()
     {
-        { "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0" },
         { "Accept", "*/*" },
         { "Referer", "https://kick.com/" },
     };
@@ -70,7 +70,7 @@ public static class TokenCheck
                 {
                     var request = new HttpRequestMessage(HttpMethod.Get, "https://kick.com/api/v1/user");
                     request.Headers.Add("Cookie",
-                        $"kick_session={tokensCouple.Item1}; {tokensCouple.Item2}={tokensCouple.Item3}");
+                        $"kick_session={tokensCouple.Item1}; {tokensCouple.Item2}={tokensCouple.Item3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}");
                     foreach (var header in Headers)
                     {
                         request.Headers.Add(header.Key, header.Value);
@@ -108,7 +108,7 @@ public static class TokenCheck
                     var request = new HttpRequestMessage(HttpMethod.Get,
                         $"https://kick.com/api/v2/channels/{streamerUsername}/me");
                     request.Headers.Add("Cookie",
-                        $"kick_session={token.Token1}; {token.Token2}={token.Token3}");
+                        $"kick_session={token.Token1}; {token.Token2}={token.Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}");
                     foreach (var header in Headers)
                     {
                         request.Headers.Add(header.Key, header.Value);
@@ -170,9 +170,8 @@ public static class Kasada
 {
     public static string ApiKey = null!;
     private static readonly SemaphoreSlim Semaphore = new(1, 1);
-    private static readonly HttpClient Client = new();
 
-    private static async Task<SalamoonderResultTaskResponse> Solve()
+    private static async Task<SalamoonderResultTaskResponse> Solve(HttpClient client)
     {
         var data = new
         {
@@ -185,13 +184,13 @@ public static class Kasada
                 cdOnly = "false"
             }
         };
-        var response = await Client.PostAsJsonAsync("https://salamoonder.com/api/createTask", data);
+        var response = await client.PostAsJsonAsync("https://salamoonder.com/api/createTask", data);
         var task = await response.Content.ReadFromJsonAsync<SalamoonderCreateTaskResponse>();
         if (task.ErrorCode != 0) throw new Exception(task.ErrorDescription);
         for (var i = 0; i < 30; i++)
         {
             await Task.Delay(1000);
-            response = await Client.PostAsJsonAsync("https://salamoonder.com/api/getTaskResult", new
+            response = await client.PostAsJsonAsync("https://salamoonder.com/api/getTaskResult", new
             {
                 taskId = task.TaskId
             });
@@ -202,7 +201,7 @@ public static class Kasada
             if (result.Solution.Error is not null &&
                 result.Solution.Error == "No solution created. (Refunded task automatically) XXX")
             {
-                return await Solve(Client);
+                return await Solve(client);
             }
 
             throw new Exception(result.Solution.Error);
@@ -214,12 +213,14 @@ public static class Kasada
 
     public static async Task<SalamoonderResultTaskResponse> Solve(object? nothing = null)
     {
+        await using var scope = ServiceProviderAccessor.ServiceProvider.CreateAsyncScope();
+        var client = scope.ServiceProvider.GetRequiredService<HttpClient>();
         Exception? exception = null;
         SalamoonderResultTaskResponse result = default;
         await Semaphore.WaitAsync();
         try
         {
-            result = await Solve();
+            result = await Solve(client);
             await Task.Delay(1000);
         }
         catch (Exception ex)
@@ -227,6 +228,7 @@ public static class Kasada
             exception = ex;
         }
 
+        CloudflareBackgroundSolverService.UserAgent = result.Solution.UserAgent!;
         Semaphore.Release();
         if (exception is not null) throw exception;
         return result;
