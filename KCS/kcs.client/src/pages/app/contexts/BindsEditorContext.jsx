@@ -218,12 +218,15 @@ function BindsEditorProvider({ children }) {
 
     const deleteBind = useCallback(async () => {
         const auth_token = Cookies.get("auth_token");
-        var response = await fetch("/api/app/deletebind?bindname=" + selectedBind.title, {
+        var response = await fetch("/api/app/deletebind", {
             method: "DELETE",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": auth_token,
             },
+            body: JSON.stringify({
+                bindname: selectedBind.title,
+            }),
         });
         if (response.redirected) {
             window.location.href = response.url;

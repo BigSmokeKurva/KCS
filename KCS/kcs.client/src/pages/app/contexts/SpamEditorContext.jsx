@@ -109,12 +109,13 @@ function SpamEditorProvider({ children }) {
 
     const deleteTemplate = useCallback(async () => {
         const auth_token = Cookies.get("auth_token");
-        var response = await fetch("/api/app/deletespamtemplate?title=" + selectedTemplate.title, {
+        var response = await fetch("/api/app/deletespamtemplate", {
             method: "DELETE",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": auth_token,
             },
+            body: JSON.stringify({ title: selectedTemplate.title }),
         });
         if (response.redirected) {
             window.location.href = response.url;

@@ -42,12 +42,13 @@ function BindsTemplateDropdown({ binds, selectedBind, setSelectedBind, getBinds 
             num++;
         } while (binds.some(bind => bind.title === title));
         var auth_token = Cookies.get('auth_token');
-        var response = await fetch('/api/app/addbind?bindname=' + title, {
-            method: 'GET',
+        var response = await fetch('/api/app/addbind', {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': auth_token
             },
+            body: JSON.stringify({ bindname: title })
         });
         if (response.redirected) {
             window.location.href = response.url;

@@ -357,9 +357,9 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         }));
     }
 
-    [HttpGet]
+    [HttpPost]
     [Route("addSpamTemplate")]
-    public async Task<ActionResult> AddSpamTemplate(string title)
+    public async Task<ActionResult> AddSpamTemplate(AddSpamTemplateModel model)
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var id = await db.GetId(authToken);
@@ -372,16 +372,16 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
 
         var configuration = await db.Configurations.FindAsync(id);
 
-        if (configuration!.SpamTemplates.Any(x => x.Title == title))
+        if (configuration!.SpamTemplates.Any(x => x.Title == model.Title))
             return Ok(new
             {
                 status = "error",
                 message = "Шаблон с таким названием уже существует."
             });
 
-        configuration.SpamTemplates.Add(new SpamTemplate { Title = title });
+        configuration.SpamTemplates.Add(new SpamTemplate { Title = model.Title });
         db.Entry(configuration).Property(x => x.SpamTemplates).IsModified = true;
-        await db.AddLog(id, $"Добавил шаблон спама {title}.", LogType.Action);
+        await db.AddLog(id, $"Добавил шаблон спама {model.Title}.", LogType.Action);
         await db.SaveChangesAsync();
         return Ok(new
         {
@@ -454,13 +454,13 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         });
     }
 
-    [HttpGet]
+    [HttpPost]
     [Route("startSpam")]
-    public async Task<ActionResult> StartSpam(string title)
+    public async Task<ActionResult> StartSpam(AddSpamTemplateModel model)
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var configuration = await db.GetConfiguration(authToken);
-        var template = configuration.SpamTemplates.FirstOrDefault(x => x.Title == title);
+        var template = configuration.SpamTemplates.FirstOrDefault(x => x.Title == model.Title);
         if (template is null)
             return Ok(new
             {
@@ -524,7 +524,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
 
     [HttpDelete]
     [Route("deleteSpamTemplate")]
-    public async Task<ActionResult> DeleteSpamTemplate(string title)
+    public async Task<ActionResult> DeleteSpamTemplate(AddSpamTemplateModel model)
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var id = await db.GetId(authToken);
@@ -536,7 +536,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
             });
 
         var configuration = await db.Configurations.FindAsync(id);
-        var template = configuration!.SpamTemplates.FirstOrDefault(x => x.Title == title);
+        var template = configuration!.SpamTemplates.FirstOrDefault(x => x.Title == model.Title);
         if (template is null)
             return Ok(new
             {
@@ -546,7 +546,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
 
         configuration.SpamTemplates.Remove(template);
         db.Entry(configuration).Property(x => x.SpamTemplates).IsModified = true;
-        await db.AddLog(id, $"Удалил шаблон спама {title}.", LogType.Action);
+        await db.AddLog(id, $"Удалил шаблон спама {model.Title}.", LogType.Action);
         await db.SaveChangesAsync();
         return Ok(new
         {
@@ -563,30 +563,31 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         return Ok(configuration.Binds);
     }
 
-    [HttpGet]
+    [HttpPost]
     [Route("addBind")]
-    public async Task<ActionResult> AddBind(string bindName)
+    public async Task<ActionResult> AddBind(AddBindModel model)
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var configuration = await db.GetConfiguration(authToken);
-        if (configuration.Binds.Any(x => x.Title == bindName))
+        if (configuration.Binds.Any(x => x.Title == model.BindName))
             return Ok(new
             {
                 status = "error",
                 message = "Бинд с таким именем уже существует."
             });
 
-        bindName = bindName.Trim();
-        if (bindName.Length < 1 || string.IsNullOrEmpty(bindName) || string.IsNullOrWhiteSpace(bindName))
+        model.BindName = model.BindName.Trim();
+        if (model.BindName.Length < 1 || string.IsNullOrEmpty(model.BindName) ||
+            string.IsNullOrWhiteSpace(model.BindName))
             return Ok(new
             {
                 status = "error",
                 message = "Имя бинда не может быть пустым."
             });
 
-        configuration.Binds.Add(new Bind { Title = bindName });
+        configuration.Binds.Add(new Bind { Title = model.BindName });
         db.Entry(configuration).Property(x => x.Binds).IsModified = true;
-        await db.AddLog(configuration.Id, $"Добавил бинд {bindName}.", LogType.Action);
+        await db.AddLog(configuration.Id, $"Добавил бинд {model.BindName}.", LogType.Action);
         await db.SaveChangesAsync();
         return Ok(new
         {
@@ -643,20 +644,20 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
 
     [HttpDelete]
     [Route("deleteBind")]
-    public async Task<ActionResult> DeleteBind(string bindName)
+    public async Task<ActionResult> DeleteBind(AddBindModel model)
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var configuration = await db.GetConfiguration(authToken);
-        if (!configuration.Binds.Any(x => x.Title == bindName))
+        if (!configuration.Binds.Any(x => x.Title == model.BindName))
             return Ok(new
             {
                 status = "error",
                 message = "Бинд не найден."
             });
 
-        configuration.Binds.RemoveAll(x => x.Title == bindName);
+        configuration.Binds.RemoveAll(x => x.Title == model.BindName);
         db.Entry(configuration).Property(x => x.Binds).IsModified = true;
-        await db.AddLog(configuration.Id, $"Удалил бинд {bindName}.", LogType.Action);
+        await db.AddLog(configuration.Id, $"Удалил бинд {model.BindName}.", LogType.Action);
         await db.SaveChangesAsync();
         return Ok(new
         {
@@ -723,25 +724,6 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
             status = "ok"
         });
     }
-
-    //[HttpGet]
-    //[Route("getFollowBots")]
-    //public async Task<ActionResult> GetFollowBots()
-    //{
-    //    var authToken = Guid.Parse(Request.Headers.Authorization!);
-    //    var configuration = await db.GetConfiguration(authToken);
-    //    var followedUsernames = configuration.Tokens.Where(x =>
-    //            db.Bots.Any(y =>
-    //                y.Username == x.Username && y.Followed.Contains(configuration.StreamerInfo.Username)))
-    //        .Select(x => x.Username);
-    //    var inQueueTokens = manager.GetFollowQueue(configuration.Id).Select(x => x.Username);
-    //    return Ok(configuration.Tokens.ToDictionary(x => x.Username, x =>
-    //    {
-    //        if (inQueueTokens.Contains(x.Username)) return "waiting";
-
-    //        return followedUsernames.Contains(x.Username) ? "followed" : "not-followed";
-    //    }));
-    //}
 
     [HttpGet]
     [Route("followBot")]

@@ -90,8 +90,8 @@ const BotList = forwardRef((props, ref) => {
 
     function selectBotButton(bot) {
         setSelectedBot(bot);
-        setCurrentIndexBot(lastBots.length);
         setLastBots([...lastBots.slice(-9), bot]);
+        setCurrentIndexBot(lastBots.length - 1);
     }
 
     const getBots = useCallback(async () => {

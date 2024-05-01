@@ -105,12 +105,13 @@ function Spam() {
     const startSpam = useCallback(async () => {
         if(!await updateTemplate()) return;
         const auth_token = Cookies.get("auth_token");
-        const response = await fetch("/api/app/startspam?title=" + selectedTemplate.title, {
-            method: "GET",
+        const response = await fetch("/api/app/startspam", {
+            method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": auth_token,
             },
+            body: JSON.stringify({ title: selectedTemplate.title })
         });
         if (response.redirected) {
             window.location.href = response.url;
