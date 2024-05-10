@@ -189,6 +189,7 @@ public class Bot : IDisposable
                     }
                 };
                 var r = await _client.SendAsync(requestMessage);
+
                 if (await IsFollowed(_client)) return true;
                 await Task.Delay(1000);
             }
@@ -210,7 +211,7 @@ public class Bot : IDisposable
             {
                 {
                     "cookie",
-                    $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                    $"kick_session={Token1}; {Token2}={Token3}"
                 },
                 { "referer", "https://kick.com" },
                 { "Accept", "application/json, text/plain, */*" },

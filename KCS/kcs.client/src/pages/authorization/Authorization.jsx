@@ -38,7 +38,7 @@ function Authorization() {
                 <img src={logoSvg} />
                 <div className={styles.logo_title}>
                     <span>RBT</span>
-                    <span>Chat</span>
+                    <span>ChatKick</span>
                 </div>
             </div>
             <SwitchComponent _selectedMode={page} />

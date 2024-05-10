@@ -7,8 +7,15 @@ namespace KCS.Server.Services;
 
 public class CloudflareBackgroundSolverService(HttpClient client) : BackgroundService
 {
-    public static string UserAgent =
+    private static string? _userAgent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+    public static string? UserAgent
+    {
+        get => _userAgent;
+        set => _userAgent = value ??
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    }
 
     public static string ApiKey;
 
@@ -140,7 +147,15 @@ public class CloudflareBackgroundSolverService(HttpClient client) : BackgroundSe
                 return;
             }
 
-            await page.EvaluateAsync($"cfCallback('{token}')");
+            try
+            {
+                await page.EvaluateAsync($"cfCallback('{token}')");
+            }
+            catch
+            {
+                isCompleted = true;
+                return;
+            }
         };
 
         page.RequestFinished += async (_, e) =>
