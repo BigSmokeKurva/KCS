@@ -211,7 +211,7 @@ public class Bot : IDisposable
             {
                 {
                     "cookie",
-                    $"kick_session={Token1}; {Token2}={Token3}"
+                    $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
                 },
                 { "referer", "https://kick.com" },
                 { "Accept", "application/json, text/plain, */*" },
