@@ -1,4 +1,6 @@
-﻿using KCS.Server.BotsManager;
+﻿using System.Net;
+using System.Security.Authentication;
+using KCS.Server.BotsManager;
 using KCS.Server.Controllers.Models;
 using KCS.Server.Database;
 using KCS.Server.Database.Models;
@@ -15,7 +17,11 @@ namespace KCS.Server.Controllers;
 [Route("api/app")]
 [ApiController]
 [TypeFilter(typeof(UserAuthorizationFilter))]
-public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager manager, FollowManager followManager)
+public class AppApiController(
+    DatabaseContext db,
+    Manager manager,
+    FollowManager followManager,
+    IConfiguration configuration)
     : ControllerBase
 {
     [HttpGet]
@@ -78,26 +84,53 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
         }
 
         var authToken = Guid.Parse(Request.Headers.Authorization!);
-
-        var request = new HttpRequestMessage(HttpMethod.Get, $"https://kick.com/api/v1/channels/{username}");
-        request.Headers.Add("Cookie", $"cf_clearance={CloudflareBackgroundSolverService.CfClearance}");
+        var proxyString = configuration.GetSection("Proxy").GetValue<string>("ConnectionString");
+        var proxySplited = proxyString.Split(':');
+        var proxy = new Proxy()
+        {
+            Type = proxySplited[0],
+            Host = proxySplited[1],
+            Port = proxySplited[2],
+            Credentials = new()
+            {
+                Username = proxySplited[3],
+                Password = proxySplited[4]
+            }
+        };
         try
         {
-            var response = await httpClient.SendAsync(request);
-            json = await response.Content.ReadFromJsonAsync<StreamerInfoResponse>();
-            if (json.Value.Chatroom is null)
-                return Ok(new
+            for (int i = 0; i < 3; i++)
+            {
+                string cfClearance =
+                    await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, proxy);
+                using HttpClient httpClient = new(new HttpClientHandler()
                 {
-                    status = "error",
-                    message = "Такого стримера не существует"
+                    Proxy = (WebProxy)proxy,
+                    Credentials = proxy.Credentials,
+                    SslProtocols = SslProtocols.Tls13
                 });
+                var request = new HttpRequestMessage(HttpMethod.Get, $"https://kick.com/api/v1/channels/{username}");
+                request.Headers.Add("Cookie", $"cf_clearance={cfClearance}");
+                request.Headers.Add("User-Agent", CloudflareBackgroundSolverService.UserAgent);
+                var response = await httpClient.SendAsync(request);
+                var content = await response.Content.ReadAsStringAsync();
+                if (content.Contains("Just a moment"))
+                    continue;
+                json = await response.Content.ReadFromJsonAsync<StreamerInfoResponse>();
+                if (json.Value.Chatroom is null)
+                    return Ok(new
+                    {
+                        status = "error",
+                        message = "Такого стримера не существует"
+                    });
+            }
         }
-        catch
+        catch (Exception ex)
         {
             return Ok(new
             {
                 status = "error",
-                message = "Такого стримера не существует"
+                message = "Ошибка проверки"
             });
         }
 
@@ -979,8 +1012,7 @@ public class AppApiController(DatabaseContext db, HttpClient httpClient, Manager
     {
         var authToken = Guid.Parse(Request.Headers.Authorization!);
         var user = await db.GetUser(authToken);
-        var tags = await TokenCheck.GetAllTags(user.Configuration.Tokens, user.Configuration.StreamerInfo.Username,
-            httpClient);
+        var tags = await TokenCheck.GetAllTags(user.Configuration.Tokens, user.Configuration.StreamerInfo.Username);
         foreach (var tag in tags) user.Configuration.Tokens.First(x => x.Username == tag.Key.Username).Tags = tag.Value;
 
         db.Entry(user.Configuration).Property(x => x.Tokens).IsModified = true;

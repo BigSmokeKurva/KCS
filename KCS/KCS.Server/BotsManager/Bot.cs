@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -17,6 +18,7 @@ public class Bot : IDisposable
     private string Token3 { get; set; }
     private string Token4 { get; set; }
     public string Username { get; set; }
+    private Proxy Proxy { get; set; }
     public StreamerInfo StreamerInfo { get; set; }
     private readonly HttpClient _client;
 
@@ -37,10 +39,13 @@ public class Bot : IDisposable
         Token4 = token4;
         Username = username;
         StreamerInfo = streamerInfo;
+        Proxy = proxy;
 
         _client = new HttpClient(new HttpClientHandler()
         {
-            Proxy = (WebProxy)proxy
+            Proxy = (WebProxy)proxy,
+            Credentials = proxy.Credentials,
+            SslProtocols = SslProtocols.Tls13
         });
     }
 
@@ -55,7 +60,7 @@ public class Bot : IDisposable
                 { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
                 {
                     "cookie",
-                    $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                    $"kick_session={Token1}; {Token2}={Token3}"
                 },
                 { "referer", "https://kick.com" },
                 { "User-Agent", CloudflareBackgroundSolverService.UserAgent }
@@ -110,11 +115,11 @@ public class Bot : IDisposable
         await Send(content, cancellationToken);
     }
 
-    public async Task<bool> UnFollow(HttpClient _client)
+    public async Task<bool> UnFollow()
     {
         try
         {
-            if (!await IsFollowed(_client))
+            if (!await IsFollowed())
             {
                 return true;
             }
@@ -122,6 +127,8 @@ public class Bot : IDisposable
             for (int i = 0; i < 3; i++)
             {
                 var kasada = await Kasada.Solve();
+                string cfClearance =
+                    await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, Proxy);
                 var requestMessage = new HttpRequestMessage(
                     HttpMethod.Delete,
                     $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/follow"
@@ -133,7 +140,7 @@ public class Bot : IDisposable
                         { "Accept", "application/json, text/plain, */*" },
                         {
                             "cookie",
-                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cfClearance}"
                         },
                         { "User-Agent", kasada.Solution.UserAgent },
                         { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
@@ -142,8 +149,15 @@ public class Bot : IDisposable
                         { "referer", "https://kick.com" }
                     }
                 };
-                await _client.SendAsync(requestMessage);
-                if (!await IsFollowed(_client))
+                var response = await _client.SendAsync(requestMessage);
+                var content = await response.Content.ReadAsStringAsync();
+                if (content.Contains("Just a moment"))
+                {
+                    await Task.Delay(1000);
+                    continue;
+                }
+
+                if (!await IsFollowed())
                     return true;
                 await Task.Delay(1000);
             }
@@ -156,18 +170,20 @@ public class Bot : IDisposable
         return false;
     }
 
-    public async Task<bool> Follow(HttpClient _client)
+    public async Task<bool> Follow()
     {
         try
         {
-            if (await IsFollowed(_client))
+            if (await IsFollowed())
             {
                 return true;
             }
 
-            for (var i = 0; i < 2; i++)
+            for (var i = 0; i < 3; i++)
             {
                 var kasada = await Kasada.Solve(_client);
+                string cfClearance =
+                    await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, Proxy);
                 var requestMessage = new HttpRequestMessage(
                     HttpMethod.Post,
                     $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/follow"
@@ -179,7 +195,7 @@ public class Bot : IDisposable
                         { "Accept", "application/json, text/plain, */*" },
                         {
                             "cookie",
-                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
+                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cfClearance}"
                         },
                         { "User-Agent", kasada.Solution.UserAgent },
                         { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
@@ -189,12 +205,18 @@ public class Bot : IDisposable
                     }
                 };
                 var r = await _client.SendAsync(requestMessage);
+                var content = await r.Content.ReadAsStringAsync();
+                if (content.Contains("Just a moment"))
+                {
+                    await Task.Delay(1000);
+                    continue;
+                }
 
-                if (await IsFollowed(_client)) return true;
+                if (await IsFollowed()) return true;
                 await Task.Delay(1000);
             }
         }
-        catch
+        catch (Exception ex)
         {
             return false;
         }
@@ -202,26 +224,40 @@ public class Bot : IDisposable
         return false;
     }
 
-    private async Task<bool> IsFollowed(HttpClient _client)
+    private async Task<bool> IsFollowed()
     {
-        var requestMessage = new HttpRequestMessage(HttpMethod.Get,
-            $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/me")
+        for (int i = 0; i < 3; i++)
         {
-            Headers =
+            string cfClearance =
+                await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, Proxy);
+            var requestMessage = new HttpRequestMessage(HttpMethod.Get,
+                $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/me")
             {
+                Headers =
                 {
-                    "cookie",
-                    $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}"
-                },
-                { "referer", "https://kick.com" },
-                { "Accept", "application/json, text/plain, */*" },
-                { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
-                { "User-Agent", CloudflareBackgroundSolverService.UserAgent }
+                    {
+                        "cookie",
+                        $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cfClearance}"
+                    },
+                    { "referer", "https://kick.com" },
+                    { "Accept", "application/json, text/plain, */*" },
+                    { "x-xsrf-token", HttpUtility.UrlDecode(Token4) },
+                    { "User-Agent", CloudflareBackgroundSolverService.UserAgent }
+                }
+            };
+            var response = await _client.SendAsync(requestMessage);
+            var content = await response.Content.ReadAsStringAsync();
+            if (content.Contains("Just a moment"))
+            {
+                await Task.Delay(1000);
+                continue;
             }
-        };
-        var response = await _client.SendAsync(requestMessage);
-        var json = await response.Content.ReadFromJsonAsync<GetMe>();
-        return json.IsFollowing;
+
+            var json = await response.Content.ReadFromJsonAsync<GetMe>();
+            return json.IsFollowing;
+        }
+
+        return false;
     }
 
     public void Dispose()

@@ -1,4 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using System.Net;
+using System.Security.Authentication;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using KCS.Server.Database.Models;
@@ -58,32 +60,44 @@ public static class TokenCheck
 
     internal static int Threads;
 
-    internal static async Task<Dictionary<string, string>> Check(IEnumerable<(string, string, string)> tokens,
-        HttpClient client)
+    internal static async Task<Dictionary<string, string>> Check(
+        IEnumerable<(string, string, string, Proxy proxy)> tokens)
     {
         ConcurrentDictionary<string, string> result = new();
-
         await Parallel.ForEachAsync(tokens, new ParallelOptions() { MaxDegreeOfParallelism = Threads },
             async (tokensCouple, e) =>
             {
-                try
+                for (int i = 0; i < 3; i++)
                 {
-                    var request = new HttpRequestMessage(HttpMethod.Get, "https://kick.com/api/v1/user");
-                    request.Headers.Add("Cookie",
-                        $"kick_session={tokensCouple.Item1}; {tokensCouple.Item2}={tokensCouple.Item3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}");
-                    foreach (var header in Headers)
+                    try
                     {
-                        request.Headers.Add(header.Key, header.Value);
-                    }
+                        using HttpClient client = new(new HttpClientHandler()
+                        {
+                            Proxy = (WebProxy)tokensCouple.proxy,
+                            Credentials = tokensCouple.proxy.Credentials,
+                            SslProtocols = SslProtocols.Tls13
+                        });
+                        string cfClearance =
+                            await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None,
+                                tokensCouple.proxy);
+                        var request = new HttpRequestMessage(HttpMethod.Get, "https://kick.com/api/v1/user");
+                        request.Headers.Add("Cookie",
+                            $"kick_session={tokensCouple.Item1}; {tokensCouple.Item2}={tokensCouple.Item3}; cf_clearance={cfClearance}");
+                        request.Headers.Add("User-Agent", CloudflareBackgroundSolverService.UserAgent);
+                        foreach (var header in Headers)
+                        {
+                            request.Headers.Add(header.Key, header.Value);
+                        }
 
-                    var response = await client.SendAsync(request, e);
-                    var json = await response.Content.ReadFromJsonAsync<UserJson>(cancellationToken: e);
-                    result.TryAdd(tokensCouple.Item1, json.Username ?? string.Empty);
-                    response.Dispose();
-                }
-                catch
-                {
-                    // ignored
+                        using var response = await client.SendAsync(request, e);
+                        var json = await response.Content.ReadFromJsonAsync<UserJson>(cancellationToken: e);
+                        result.TryAdd(tokensCouple.Item1, json.Username ?? string.Empty);
+                        break;
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
                 }
             });
         return new Dictionary<string, string>(result).GroupBy(pair => pair.Value)
@@ -92,7 +106,7 @@ public static class TokenCheck
     }
 
     internal static async Task<Dictionary<TokenItem, List<Tag>>> GetAllTags(IEnumerable<TokenItem> tokens,
-        string streamerUsername, HttpClient client)
+        string streamerUsername)
     {
         ConcurrentDictionary<TokenItem, List<Tag>> result = new();
         foreach (var token in tokens)
@@ -105,16 +119,25 @@ public static class TokenCheck
             {
                 try
                 {
+                    string cfClearance =
+                        await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, token.Proxy);
+                    using HttpClient httpClient = new(new HttpClientHandler()
+                    {
+                        Proxy = (WebProxy)token.Proxy,
+                        Credentials = token.Proxy.Credentials,
+                        SslProtocols = SslProtocols.Tls13
+                    });
                     var request = new HttpRequestMessage(HttpMethod.Get,
                         $"https://kick.com/api/v2/channels/{streamerUsername}/me");
                     request.Headers.Add("Cookie",
-                        $"kick_session={token.Token1}; {token.Token2}={token.Token3}; cf_clearance={CloudflareBackgroundSolverService.CfClearance}");
+                        $"kick_session={token.Token1}; {token.Token2}={token.Token3}; cf_clearance={cfClearance}");
+                    request.Headers.Add("User-Agent", CloudflareBackgroundSolverService.UserAgent);
                     foreach (var header in Headers)
                     {
                         request.Headers.Add(header.Key, header.Value);
                     }
 
-                    var response = await client.SendAsync(request, e);
+                    var response = await httpClient.SendAsync(request, e);
                     var json = await response.Content.ReadFromJsonAsync<MeJson>(cancellationToken: e);
                     token.Tags.Clear();
 
@@ -192,7 +215,8 @@ public static class Kasada
             await Task.Delay(1000);
             response = await client.PostAsJsonAsync("https://salamoonder.com/api/getTaskResult", new
             {
-                taskId = task.TaskId
+                taskId = task.TaskId,
+                api_key = ApiKey
             });
             var result = await response.Content.ReadFromJsonAsync<SalamoonderResultTaskResponse>();
 
@@ -213,8 +237,7 @@ public static class Kasada
 
     public static async Task<SalamoonderResultTaskResponse> Solve(object? nothing = null)
     {
-        await using var scope = ServiceProviderAccessor.ServiceProvider.CreateAsyncScope();
-        var client = scope.ServiceProvider.GetRequiredService<HttpClient>();
+        using HttpClient client = new();
         Exception? exception = null;
         SalamoonderResultTaskResponse result = default;
         await Semaphore.WaitAsync();

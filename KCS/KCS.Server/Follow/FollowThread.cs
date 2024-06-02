@@ -45,7 +45,7 @@ namespace KCS.Server.Follow
                 switch (_item.Action)
                 {
                     case Action.Follow:
-                        response = await _item.Bot.Follow(client);
+                        response = await _item.Bot.Follow();
                         if (response)
                         {
                             _item.State = ThreadState.Followed;
@@ -56,7 +56,7 @@ namespace KCS.Server.Follow
                         queue.Remove(_item);
                         break;
                     case Action.Unfollow:
-                        response = await _item.Bot.UnFollow(client);
+                        response = await _item.Bot.UnFollow();
                         if (response)
                         {
                             _item.State = ThreadState.Unfollowed;

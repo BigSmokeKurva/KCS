@@ -232,7 +232,7 @@ namespace KCS.Server.Controllers
                 }
             }
 
-            var checkedTokens = await TokenCheck.Check(tokens.Select(x => (x.Token1, x.Token2, x.Token3)), client);
+            var checkedTokens = await TokenCheck.Check(tokens.Select(x => (x.Token1, x.Token2, x.Token3, x.Proxy)));
             List<TokenItem> tokensResult = [];
             foreach (var checkedToken in checkedTokens)
             {

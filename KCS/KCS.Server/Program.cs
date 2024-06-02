@@ -21,9 +21,6 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Настройка Playwright
-        ConfigurePlaywright();
-
         // Настройка источника данных PostgreSQL
         ConfigurePostgresDataSource(builder.Configuration);
 
@@ -48,8 +45,8 @@ public class Program
         // Передача конфига статичным классам
         TokenCheck.Threads = app.Configuration.GetSection("TokenCheck").GetValue<int>("Threads");
         Kasada.ApiKey = app.Configuration.GetSection("Salamoonder").GetValue<string>("ApiKey")!;
-        CloudflareBackgroundSolverService.ApiKey =
-            app.Configuration.GetSection("RuCaptcha").GetValue<string>("ApiKey")!;
+        CloudflareBackgroundSolverService.Url =
+            app.Configuration.GetSection("CloudflareSolver").GetValue<string>("Url")!;
 
         // Запуск приложения
         await app.RunAsync();
@@ -99,7 +96,6 @@ public class Program
         builder.Services.AddHostedService<SessionExpiresCheckService>();
         builder.Services.AddHostedService<LastOnlineCheckService>();
         builder.Services.AddHostedService<InviteCodeExpiresCheckService>();
-        builder.Services.AddHostedService<CloudflareBackgroundSolverService>();
         builder.Services.AddSingleton(client);
         builder.Services.AddSingleton(
             new FollowManager(builder.Configuration.GetSection("FollowBot").GetValue<int>("Threads"), client));
@@ -112,12 +108,6 @@ public class Program
                 options.Listen(ip, 80);
                 options.Listen(ip, 443, listenOptions => { listenOptions.UseHttps("cert.pfx", "iop3360A"); });
             });
-    }
-
-    private static void ConfigurePlaywright()
-    {
-        Microsoft.Playwright.Program.Main(["install", "chromium"]);
-        Console.Clear();
     }
 
     private static async Task InitializeRootUserAsync(WebApplication app)
