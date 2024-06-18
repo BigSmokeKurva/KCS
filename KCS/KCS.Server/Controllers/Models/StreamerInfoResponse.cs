@@ -12,4 +12,5 @@ public struct ChatroomObject
 public struct StreamerInfoResponse
 {
     [JsonPropertyName("chatroom")] public ChatroomObject? Chatroom { get; set; }
+    [JsonPropertyName("id")] public int Id { get; set; }
 }
