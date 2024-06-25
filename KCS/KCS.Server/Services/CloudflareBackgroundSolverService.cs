@@ -9,7 +9,7 @@ namespace KCS.Server.Services;
 public class CloudflareBackgroundSolverService
 {
     private static string? _userAgent =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
     public static string Url = "";
     private static readonly HttpClient client = new();
@@ -21,7 +21,15 @@ public class CloudflareBackgroundSolverService
                             _userAgent;
     }
 
-    public static async Task<string> SolveCfClearance(CancellationToken stoppingToken, Proxy proxy)
+    /// <summary>
+    /// Item1 = cf_clearance
+    /// Item2 = cfbm
+    /// </summary>
+    /// <param name="stoppingToken"></param>
+    /// <param name="proxy"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static async Task<(string, string)> SolveCfClearance(CancellationToken stoppingToken, Proxy proxy)
     {
         var data = new
         {
@@ -56,7 +64,7 @@ public class CloudflareBackgroundSolverService
                     await Task.Delay(1000, stoppingToken);
                     continue;
                 case "Completed":
-                    return resultResponse["cfClearance"]!;
+                    return (resultResponse["cfClearance"], resultResponse["cfBm"]);
                 default:
                     throw new Exception("Unknown status");
             }

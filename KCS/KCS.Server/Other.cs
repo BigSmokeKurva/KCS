@@ -1,10 +1,13 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Authentication;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using KCS.Server.Database.Models;
 using KCS.Server.Services;
+using HttpMethod = System.Net.Http.HttpMethod;
 
 namespace KCS.Server;
 
@@ -74,15 +77,16 @@ public static class TokenCheck
                         using HttpClient client = new(new HttpClientHandler()
                         {
                             Proxy = (WebProxy)tokensCouple.proxy,
-                            Credentials = tokensCouple.proxy.Credentials,
-                            SslProtocols = SslProtocols.Tls13
+                            SslProtocols = SslProtocols.Tls12,
+                            UseCookies = true,
+                            CookieContainer = new CookieContainer(),
                         });
-                        string cfClearance =
+                        var cf =
                             await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None,
                                 tokensCouple.proxy);
                         var request = new HttpRequestMessage(HttpMethod.Get, "https://kick.com/api/v1/user");
                         request.Headers.Add("Cookie",
-                            $"kick_session={tokensCouple.Item1}; {tokensCouple.Item2}={tokensCouple.Item3}; cf_clearance={cfClearance}");
+                            $"kick_session={tokensCouple.Item1}; {tokensCouple.Item2}={tokensCouple.Item3}; cf_clearance={cf.Item1}; __cf_bm={cf.Item2}");
                         request.Headers.Add("User-Agent", CloudflareBackgroundSolverService.UserAgent);
                         foreach (var header in Headers)
                         {
@@ -119,18 +123,20 @@ public static class TokenCheck
             {
                 try
                 {
-                    string cfClearance =
+                    var cf =
                         await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, token.Proxy);
+
                     using HttpClient httpClient = new(new HttpClientHandler()
                     {
                         Proxy = (WebProxy)token.Proxy,
-                        Credentials = token.Proxy.Credentials,
-                        SslProtocols = SslProtocols.Tls13
+                        SslProtocols = SslProtocols.Tls12,
+                        UseCookies = true,
+                        CookieContainer = new CookieContainer()
                     });
                     var request = new HttpRequestMessage(HttpMethod.Get,
                         $"https://kick.com/api/v2/channels/{streamerUsername}/me");
                     request.Headers.Add("Cookie",
-                        $"kick_session={token.Token1}; {token.Token2}={token.Token3}; cf_clearance={cfClearance}");
+                        $"kick_session={token.Token1}; {token.Token2}={token.Token3}; cf_clearance={cf.Item1}; __cf_bm={cf.Item2}");
                     request.Headers.Add("User-Agent", CloudflareBackgroundSolverService.UserAgent);
                     foreach (var header in Headers)
                     {

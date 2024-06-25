@@ -45,8 +45,9 @@ public class Bot : IDisposable
         _client = new HttpClient(new HttpClientHandler()
         {
             Proxy = (WebProxy)proxy,
-            Credentials = proxy.Credentials,
-            SslProtocols = SslProtocols.Tls13
+            SslProtocols = SslProtocols.Tls12,
+            UseCookies = true,
+            CookieContainer = new CookieContainer()
         });
     }
 
@@ -167,7 +168,7 @@ public class Bot : IDisposable
             for (int i = 0; i < 3; i++)
             {
                 var kasada = await Kasada.Solve();
-                string cfClearance =
+                var cf =
                     await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, Proxy);
                 var requestMessage = new HttpRequestMessage(
                     HttpMethod.Delete,
@@ -180,7 +181,7 @@ public class Bot : IDisposable
                         { "Accept", "application/json, text/plain, */*" },
                         {
                             "cookie",
-                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cfClearance}"
+                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cf.Item1}; __cf_bm={cf.Item2}"
                         },
                         { "User-Agent", kasada.Solution.UserAgent },
                         { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
@@ -222,8 +223,9 @@ public class Bot : IDisposable
             for (var i = 0; i < 3; i++)
             {
                 var kasada = await Kasada.Solve(_client);
-                string cfClearance =
+                var cf =
                     await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, Proxy);
+
                 var requestMessage = new HttpRequestMessage(
                     HttpMethod.Post,
                     $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/follow"
@@ -235,7 +237,7 @@ public class Bot : IDisposable
                         { "Accept", "application/json, text/plain, */*" },
                         {
                             "cookie",
-                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cfClearance}"
+                            $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cf.Item1}; __cf_bm={cf.Item2}"
                         },
                         { "User-Agent", kasada.Solution.UserAgent },
                         { "x-kpsdk-cd", kasada.Solution.XKpsdkCd },
@@ -268,8 +270,9 @@ public class Bot : IDisposable
     {
         for (int i = 0; i < 3; i++)
         {
-            string cfClearance =
+            var cf =
                 await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, Proxy);
+
             var requestMessage = new HttpRequestMessage(HttpMethod.Get,
                 $"https://kick.com/api/v2/channels/{StreamerInfo.Username}/me")
             {
@@ -277,7 +280,7 @@ public class Bot : IDisposable
                 {
                     {
                         "cookie",
-                        $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cfClearance}"
+                        $"kick_session={Token1}; {Token2}={Token3}; cf_clearance={cf.Item1}; __cf_bm={cf.Item2}"
                     },
                     { "referer", "https://kick.com" },
                     { "Accept", "application/json, text/plain, */*" },

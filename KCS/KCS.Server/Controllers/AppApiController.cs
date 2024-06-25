@@ -101,16 +101,18 @@ public class AppApiController(
         {
             for (int i = 0; i < 3; i++)
             {
-                string cfClearance =
+                var cf =
                     await CloudflareBackgroundSolverService.SolveCfClearance(CancellationToken.None, proxy);
+
                 using HttpClient httpClient = new(new HttpClientHandler()
                 {
                     Proxy = (WebProxy)proxy,
-                    Credentials = proxy.Credentials,
-                    SslProtocols = SslProtocols.Tls13
+                    SslProtocols = SslProtocols.Tls12,
+                    UseCookies = true,
+                    CookieContainer = new CookieContainer()
                 });
                 var request = new HttpRequestMessage(HttpMethod.Get, $"https://kick.com/api/v1/channels/{username}");
-                request.Headers.Add("Cookie", $"cf_clearance={cfClearance}");
+                request.Headers.Add("Cookie", $"cf_clearance={cf.Item1}; __cf_bm={cf.Item2}");
                 request.Headers.Add("User-Agent", CloudflareBackgroundSolverService.UserAgent);
                 var response = await httpClient.SendAsync(request);
                 var content = await response.Content.ReadAsStringAsync();
